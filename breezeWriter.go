@@ -162,19 +162,9 @@ func writeArray(buf *Buffer, v reflect.Value) (err error) {
 func writeMap(buf *Buffer, v reflect.Value) (err error) {
 	buf.WriteByte(MAP)
 	pos := skipLength(buf)
-	iter := v.MapRange()
-	for iter.Next() {
-		err = WriteValue(buf, iter.Key())
-		if err != nil {
-			return err
-		}
-		err = WriteValue(buf, iter.Value())
-		if err != nil {
-			return err
-		}
-	}
+	err = rangeMap(buf, v)
 	writeLength(buf, pos)
-	return nil
+	return err
 }
 
 // keep 4 bytes for write length later
