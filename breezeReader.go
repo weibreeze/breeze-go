@@ -65,7 +65,15 @@ func ReadInt16(buf *Buffer, i *int16) error {
 	return err
 }
 
+// ReadInt read int32 as int
 func ReadInt(buf *Buffer, i *int) error {
+	var i32 int32
+	err := ReadInt32(buf, &i32)
+	*i = int(i32)
+	return err
+}
+
+func ReadInt32(buf *Buffer, i *int32) error {
 	err := checkType(buf, INT32)
 	if err != nil {
 		return err
@@ -404,7 +412,7 @@ func readInt32WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
 		return int32(i), nil
 	}
 	if castV, ok := v.(*int); ok {
-		*castV = int(i)
+		*castV = int(int32(i))
 		return *castV, nil
 	}
 	if castV, ok := v.(*int32); ok {
@@ -414,7 +422,7 @@ func readInt32WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
 	rt, isType := v.(reflect.Type)
 	if isType {
 		if rt.Kind() == reflect.Int || rt.Kind() == reflect.Interface {
-			return int(i), nil
+			return int(int32(i)), nil
 		} else if rt.Kind() == reflect.Int32 {
 			return int32(i), nil
 		}
@@ -552,8 +560,8 @@ func getIntByKind(i int64, k reflect.Kind) (interface{}, error) {
 		return int32(i), nil
 	case reflect.Uint32:
 		return uint32(i), nil
-	case reflect.Int:
-		return int(i), nil
+	case reflect.Int: // for compatible with other language, int is regarded as int32 in breeze. u should use int64 if value over int32
+		return int(int32(i)), nil
 	case reflect.Uint:
 		return uint(i), nil
 	case reflect.Int64:
