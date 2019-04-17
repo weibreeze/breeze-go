@@ -37,11 +37,7 @@ var (
 	ErrOverflow  = errors.New("Breeze: integer overflow")
 )
 
-type Serializer interface {
-	WriteTo(buf *Buffer, v interface{}) (bool, error)
-	ReadFrom(buf *Buffer, v interface{}) error
-}
-
+// Message is a interface of breeze message. all breeze message must implement Message
 type Message interface {
 	WriteTo(buf *Buffer) error
 	ReadFrom(buf *Buffer) error
@@ -50,6 +46,7 @@ type Message interface {
 	GetSchema() *Schema
 }
 
+// GenericMessage is a generic breeze message. it can receive any breeze message
 type GenericMessage struct {
 	Name   string
 	Alias  string
@@ -57,10 +54,12 @@ type GenericMessage struct {
 	fields map[int]interface{}
 }
 
+// GetAlias return breeze message alias for multi language compat
 func (g *GenericMessage) GetAlias() string {
 	return g.Alias
 }
 
+// WriteTo write breeze message to breeze buffer.
 func (g *GenericMessage) WriteTo(buf *Buffer) error {
 	return WriteMessage(buf, g.Name, func(buf *Buffer) {
 		for k, v := range g.fields {
@@ -69,6 +68,7 @@ func (g *GenericMessage) WriteTo(buf *Buffer) error {
 	})
 }
 
+// ReadFrom read a breeze message from breeze buffer
 func (g *GenericMessage) ReadFrom(buf *Buffer) error {
 	return ReadMessageByField(buf, func(buf *Buffer, index int) (err error) {
 		v, err := ReadValue(buf, nil)
@@ -83,14 +83,17 @@ func (g *GenericMessage) ReadFrom(buf *Buffer) error {
 	})
 }
 
+// GetName get the name of breeze message
 func (g *GenericMessage) GetName() string {
 	return g.Name
 }
 
+// GetSchema get breeze message's schema
 func (g *GenericMessage) GetSchema() *Schema {
 	return g.schema
 }
 
+// GetFieldByIndex get a GenericMessage's field by field index
 func (g *GenericMessage) GetFieldByIndex(index int) interface{} {
 	if g.fields == nil {
 		return nil
@@ -98,6 +101,7 @@ func (g *GenericMessage) GetFieldByIndex(index int) interface{} {
 	return g.fields[index]
 }
 
+// GetFieldByName get a GenericMessage's field by field name
 func (g *GenericMessage) GetFieldByName(name string) (interface{}, error) {
 	if g.schema == nil {
 		return nil, ErrNoSchema
@@ -112,6 +116,7 @@ func (g *GenericMessage) GetFieldByName(name string) (interface{}, error) {
 	return nil, nil
 }
 
+// PutField put a field into a GenericMessage
 func (g *GenericMessage) PutField(index int, field interface{}) {
 	if index > -1 && field != nil {
 		if g.fields == nil {
@@ -121,6 +126,7 @@ func (g *GenericMessage) PutField(index int, field interface{}) {
 	}
 }
 
+// Schema describes a breeze message, include name, alias, all fields of message
 type Schema struct {
 	Name          string
 	Alias         string
@@ -128,6 +134,7 @@ type Schema struct {
 	nameFieldMap  map[string]*Field
 }
 
+// PutFields put a field into a schema
 func (s *Schema) PutFields(fields ...*Field) {
 	if s.indexFieldMap == nil {
 		s.indexFieldMap = make(map[int]*Field, DefaultSize)
@@ -143,6 +150,7 @@ func (s *Schema) PutFields(fields ...*Field) {
 	}
 }
 
+// GetFieldByIndex get a message's field from schema by field index
 func (s *Schema) GetFieldByIndex(index int) *Field {
 	if s.indexFieldMap != nil {
 		return s.indexFieldMap[index]
@@ -150,6 +158,7 @@ func (s *Schema) GetFieldByIndex(index int) *Field {
 	return nil
 }
 
+// GetFieldByName get a message's field from schema by field name
 func (s *Schema) GetFieldByName(name string) *Field {
 	if s.nameFieldMap != nil {
 		return s.nameFieldMap[name]
@@ -157,6 +166,7 @@ func (s *Schema) GetFieldByName(name string) *Field {
 	return nil
 }
 
+// Field describes a message field, include field index, field name and field type
 type Field struct {
 	Index int
 	Name  string

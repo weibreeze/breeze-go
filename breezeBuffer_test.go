@@ -2,11 +2,11 @@ package breeze
 
 import (
 	"encoding/binary"
+	"reflect"
 	"testing"
 )
 
-func TestWrite(t *testing.T) {
-	// new Buffer
+func TestNewBuffer(t *testing.T) {
 	initsize := 1
 	buf := NewBufferWithOrder(initsize, binary.LittleEndian)
 	if buf.order != binary.LittleEndian {
@@ -34,9 +34,10 @@ func TestWrite(t *testing.T) {
 	if buf.Cap() < 3 || buf.wpos != 3 {
 		t.Errorf("buf SetWPos expand buffer failed: %d", buf.Cap())
 	}
+}
 
-	buf.SetWPos(0)
-
+func TestWrite(t *testing.T) {
+	buf := NewBuffer(32)
 	// write byte
 	buf.WriteByte('A')
 	if buf.wpos != 1 || buf.Len() != 1 {
@@ -55,26 +56,39 @@ func TestWrite(t *testing.T) {
 		t.Errorf("buf wpos not correct.buf:%+v\n", buf)
 	}
 
+	// write uint
+	buf.Reset()
+	buf.WriteUint32(uint32(123))
+	buf.WriteUint64(uint64(789))
+	tempbytes := buf.Bytes()
+	if 123 != int(binary.BigEndian.Uint32(tempbytes[:4])) {
+		t.Errorf("write uint32 not correct.buf:%+v\n", buf)
+	}
+	if 789 != int(binary.BigEndian.Uint64(tempbytes[4:12])) {
+		t.Errorf("write uint32 not correct.buf:%+v\n", buf)
+	}
+}
+
+func TestWriteWithGrow(t *testing.T) {
 	// write with grow
-	oldpos = buf.GetWPos()
-	size = 107
-	bytes = make([]byte, 0, size)
+	buf := NewBuffer(32)
+	size := 107
+	bytes := make([]byte, 0, size)
 	for i := 0; i < size; i++ {
 		bytes = append(bytes, 'c')
 	}
 	buf.Write(bytes)
-	if buf.wpos != size+oldpos || buf.Len() != size+oldpos {
+	if buf.wpos != size || buf.Len() != size {
 		t.Errorf("buf wpos not correct.buf:%+v\n", buf)
 	}
 	// set wpos
 	buf.Reset()
-	oldpos = buf.GetWPos()
-	if oldpos != 0 {
+	if buf.GetWPos() != 0 {
 		t.Errorf("buf reset wpos not correct.buf:%+v\n", buf)
 	}
 	buf.SetWPos(4)
 	buf.Write(bytes)
-	buf.SetWPos(oldpos)
+	buf.SetWPos(0)
 	buf.WriteUint32(uint32(len(bytes)))
 	buf.SetWPos(buf.GetWPos() + len(bytes))
 	tempbytes := buf.Bytes()
@@ -84,123 +98,61 @@ func TestWrite(t *testing.T) {
 	if len(tempbytes) != 4+len(bytes) {
 		t.Errorf("set wpos test not correct.buf:%+v\n", buf)
 	}
-
-	// write uint
-	buf.Reset()
-	buf.WriteUint32(uint32(123))
-	buf.WriteUint64(uint64(789))
-	tempbytes = buf.Bytes()
-	if 123 != int(binary.BigEndian.Uint32(tempbytes[:4])) {
-		t.Errorf("write uint32 not correct.buf:%+v\n", buf)
-	}
-	if 789 != int(binary.BigEndian.Uint64(tempbytes[4:12])) {
-		t.Errorf("write uint32 not correct.buf:%+v\n", buf)
-	}
-
 }
 
 func TestRead(t *testing.T) {
 	buf := NewBuffer(128)
-	size1 := 20
-	bytes1 := make([]byte, 0, size1)
-	for i := 0; i < size1; i++ {
-		bytes1 = append(bytes1, 'A')
-	}
-	buf.SetWPos(4)
-	buf.Write(bytes1)
-	buf.SetWPos(0)
-	buf.WriteUint32(uint32(size1))
-	buf.SetWPos(size1 + 4)
+	b := byte(45)
+	s := "jlk>E&(*L#?>"
+	i16 := uint16(34)
+	i32 := uint32(56)
+	i64 := uint64(56578)
 
-	buf.WriteByte('b')
+	buf.WriteByte(b)
+	buf.Write([]byte(s))
+	buf.WriteUint16(i16)
+	buf.WriteUint32(i32)
+	buf.WriteUint64(i64)
 
-	size2 := 25
-	bytes2 := make([]byte, 0, size2)
-	for i := 0; i < size2; i++ {
-		bytes2 = append(bytes2, 'c')
-	}
-	oldwpos := buf.GetWPos()
-	buf.SetWPos(oldwpos + 8)
-	buf.Write(bytes2)
-	buf.SetWPos(oldwpos)
-	buf.WriteUint64(uint64(size2))
-	buf.SetWPos(oldwpos + 8 + size2)
-
-	data := buf.Bytes()
-	buf2 := CreateBuffer(data)
-	if buf2.order != binary.BigEndian {
-		t.Errorf("order not correct. real:%s, expect:%s\n", buf.order, binary.BigEndian)
-	}
-	if buf2.rpos != 0 {
-		t.Errorf("rpos init value not correct. buf:%v\n", buf2)
-	}
-	rsize := size1 + size2 + 4 + 8 + 1
-	if buf2.Len() != rsize {
-		t.Errorf("read buf len not correct. buf:%v\n", buf2)
-	}
-	if buf2.Remain() != rsize {
-		t.Errorf("read buf remain not correct. buf:%v\n", buf2)
+	bytes := buf.Bytes()
+	buf2 := CreateBuffer(bytes)
+	// read full
+	rbytes := make([]byte, len(bytes))
+	buf2.ReadFull(rbytes)
+	if !reflect.DeepEqual(rbytes, bytes) {
+		t.Errorf("wrong buf bytes. expect:%v, real:%v\n", bytes, rbytes)
 	}
 
-	// read uint
-	l1, _ := buf2.ReadUint32()
-	if l1 != 20 || buf2.rpos != 4 {
-		t.Errorf("read uint32 not correct. buf:%v\n", buf2)
-	}
-	if buf2.Len() != rsize {
-		t.Errorf("read buf len not correct. buf:%v\n", buf2)
-	}
-	if buf2.Remain() != rsize-4 {
-		t.Errorf("read buf remain not correct. buf:%v\n", buf2)
+	//read next
+	buf2.rpos = 0
+	rbytes, _ = buf2.Next(len(bytes))
+	if !reflect.DeepEqual(rbytes, bytes) {
+		t.Errorf("wrong buf bytes. expect:%v, real:%v\n", bytes, rbytes)
 	}
 
-	// read bytes
-	rbytes1 := make([]byte, size1)
-	buf2.ReadFull(rbytes1)
-	if len(rbytes1) != size1 {
-		t.Errorf("read bytes not correct. bytes: %v, buf:%v\n", rbytes1, buf2)
+	//read
+	buf2.rpos = 0
+	rb, _ := buf2.ReadByte()
+	if rb != b {
+		t.Errorf("wrong buf value. expect:%v, real:%v\n", b, rb)
 	}
-
-	// read next
-	buf2.SetRPos(buf2.GetRPos() - size1)
-	rbytes2, _ := buf2.Next(size1)
-	if len(rbytes2) != size1 {
-		t.Errorf("read next not correct. bytes: %v, buf:%v\n", rbytes2, buf2)
+	rbytes = make([]byte, len(s))
+	buf2.Read(rbytes)
+	if string(rbytes) != s {
+		t.Errorf("wrong buf value. expect:%v, real:%v\n", s, string(rbytes))
 	}
-	for i := 0; i < size1; i++ {
-		if rbytes1[i] != 'A' {
-			t.Errorf("read bytes not correct. bytes: %v, buf:%v\n", rbytes1, buf2)
-		}
-		if rbytes2[i] != 'A' {
-			t.Errorf("read next not correct. bytes: %v, buf:%v\n", rbytes2, buf2)
-		}
+	ri16, _ := buf2.ReadUint16()
+	if ri16 != i16 {
+		t.Errorf("wrong buf value. expect:%v, real:%v\n", i16, ri16)
 	}
-
-	if buf2.rpos != size1+4 {
-		t.Errorf("rpos value not correct. buf:%v\n", buf2)
+	ri32, _ := buf2.ReadUint32()
+	if ri32 != i32 {
+		t.Errorf("wrong buf value. expect:%v, real:%v\n", i32, ri32)
 	}
-
-	// read byte
-	b, _ := buf2.ReadByte()
-	if b != 'b' {
-		t.Errorf("read byte not correct. byte: %v, buf:%v\n", b, buf2)
+	ri64, _ := buf2.ReadUint64()
+	if ri64 != i64 {
+		t.Errorf("wrong buf value. expect:%v, real:%v\n", i64, ri64)
 	}
-
-	// read uint64
-	l2, _ := buf2.ReadUint64()
-	if int(l2) != size2 {
-		t.Errorf("read uint32 not correct. buf:%v\n", buf2)
-	}
-	rbytes3, _ := buf2.Next(size2)
-	if len(rbytes3) != size2 {
-		t.Errorf("read next not correct. bytes: %v, buf:%v\n", rbytes3, buf2)
-	}
-	for i := 0; i < size2; i++ {
-		if rbytes3[i] != 'c' {
-			t.Errorf("read next not correct. bytes: %v, buf:%v\n", rbytes3, buf2)
-		}
-	}
-
 }
 
 func TestZigzag(t *testing.T) {

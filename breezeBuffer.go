@@ -84,7 +84,7 @@ func (b *Buffer) Write(bytes []byte) {
 	b.wpos += l
 }
 
-// WriteUint16 write A uint16 append the Buffer acording to buffer's order
+// WriteUint16 write A uint16 append the Buffer according to buffer's order
 func (b *Buffer) WriteUint16(u uint16) {
 	if len(b.buf) < b.wpos+2 {
 		b.grow(2)
@@ -94,6 +94,7 @@ func (b *Buffer) WriteUint16(u uint16) {
 	b.wpos += 2
 }
 
+// WriteUint32 write a uint32 append to the Buffer
 func (b *Buffer) WriteUint32(u uint32) {
 	if len(b.buf) < b.wpos+4 {
 		b.grow(4)
@@ -103,6 +104,7 @@ func (b *Buffer) WriteUint32(u uint32) {
 	b.wpos += 4
 }
 
+// WriteUint64 write a uint64 append to the Buffer
 func (b *Buffer) WriteUint64(u uint64) {
 	if len(b.buf) < b.wpos+8 {
 		b.grow(8)
@@ -112,14 +114,17 @@ func (b *Buffer) WriteUint64(u uint64) {
 	b.wpos += 8
 }
 
+// WriteZigzag32 write a uint32 append to the Buffer with zigzag algorithm
 func (b *Buffer) WriteZigzag32(u uint32) int {
 	return b.WriteVarint(uint64((u << 1) ^ uint32(int32(u)>>31)))
 }
 
+// WriteZigzag64 write a uint64 append to the Buffer with zigzag algorithm
 func (b *Buffer) WriteZigzag64(u uint64) int {
 	return b.WriteVarint(uint64((u << 1) ^ uint64(int64(u)>>63)))
 }
 
+// WriteVarint write a uint64 into buffer with variable length
 func (b *Buffer) WriteVarint(u uint64) int {
 	l := 0
 	for u >= 1<<7 {
@@ -138,8 +143,10 @@ func (b *Buffer) grow(n int) {
 	b.buf = buf
 }
 
+// Bytes return a bytes slice of under bytebuffer.
 func (b *Buffer) Bytes() []byte { return b.buf[:b.wpos] }
 
+// Read read buffer's byte to byte array. return value n is read size.
 func (b *Buffer) Read(p []byte) (n int, err error) {
 	if b.rpos >= len(b.buf) {
 		return 0, io.EOF
@@ -150,6 +157,7 @@ func (b *Buffer) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// ReadFull read buffer's byte to byte array. if read size not equals len(p), will return error ErrNotEnough
 func (b *Buffer) ReadFull(p []byte) error {
 	if b.Remain() < len(p) {
 		return ErrNotEnough
@@ -162,6 +170,7 @@ func (b *Buffer) ReadFull(p []byte) error {
 	return nil
 }
 
+// ReadUint16 read a uint16 from buffer.
 func (b *Buffer) ReadUint16() (n uint16, err error) {
 	if b.Remain() < 2 {
 		return 0, ErrNotEnough
@@ -177,6 +186,7 @@ func (b *Buffer) ReadInt() (int, error) {
 	return int(n), err
 }
 
+// ReadUint32 read a uint32 from buffer.
 func (b *Buffer) ReadUint32() (n uint32, err error) {
 	if b.Remain() < 4 {
 		return 0, ErrNotEnough
@@ -186,6 +196,7 @@ func (b *Buffer) ReadUint32() (n uint32, err error) {
 	return n, nil
 }
 
+// ReadUint64 read a uint64 from buffer.
 func (b *Buffer) ReadUint64() (n uint64, err error) {
 	if b.Remain() < 8 {
 		return 0, ErrNotEnough
@@ -195,6 +206,7 @@ func (b *Buffer) ReadUint64() (n uint64, err error) {
 	return n, nil
 }
 
+// ReadZigzag64 read a zigzaged uint64 from buffer.
 func (b *Buffer) ReadZigzag64() (x uint64, err error) {
 	x, err = b.ReadVarint()
 	if err != nil {
@@ -204,6 +216,7 @@ func (b *Buffer) ReadZigzag64() (x uint64, err error) {
 	return
 }
 
+// ReadZigzag32 read a zigzaged uint32 from buffer.
 func (b *Buffer) ReadZigzag32() (x uint64, err error) {
 	x, err = b.ReadVarint()
 	if err != nil {
@@ -213,6 +226,7 @@ func (b *Buffer) ReadZigzag32() (x uint64, err error) {
 	return
 }
 
+// ReadVarint read a variable length uint64 form buffer
 func (b *Buffer) ReadVarint() (x uint64, err error) {
 	var temp byte
 	for offset := uint(0); offset < 64; offset += 7 {
@@ -229,12 +243,11 @@ func (b *Buffer) ReadVarint() (x uint64, err error) {
 	return 0, ErrOverflow
 }
 
-/**
+/*
 Next get next n bytes from the buffer.
 notice that return bytes is A slice of under byte array, hold the return value means hold all under byte array.
 so , this method only for short-lived use
 */
-
 func (b *Buffer) Next(n int) ([]byte, error) {
 	m := b.Remain()
 	if n > m {
@@ -245,6 +258,7 @@ func (b *Buffer) Next(n int) ([]byte, error) {
 	return data, nil
 }
 
+// ReadByte read a byte form buffer
 func (b *Buffer) ReadByte() (byte, error) {
 	if b.rpos >= len(b.buf) {
 		return 0, io.EOF
@@ -254,13 +268,17 @@ func (b *Buffer) ReadByte() (byte, error) {
 	return c, nil
 }
 
+// Reset reset the read position and write position to zero
 func (b *Buffer) Reset() {
 	b.rpos = 0
 	b.wpos = 0
 }
 
+// Remain is used in buffer read, it return a size of bytes the buffer remained
 func (b *Buffer) Remain() int { return b.wpos - b.rpos }
 
+// Len return the len of buffer' bytes,
 func (b *Buffer) Len() int { return b.wpos - 0 }
 
+// Cap return the capacity of the under bytebuffer
 func (b *Buffer) Cap() int { return cap(b.buf) }

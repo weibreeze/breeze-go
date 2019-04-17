@@ -7,12 +7,15 @@ import (
 	"strconv"
 )
 
+// default value of breeze reader
 const (
 	DefaultSize = 16
 )
 
+// ReadFieldsFunc is a func interface of how to read a breeze message field by field index.
 type ReadFieldsFunc func(buf *Buffer, index int) error
 
+// ReadBool read a bool value into the bool pointer
 func ReadBool(buf *Buffer, b *bool) error {
 	tp, err := buf.ReadByte()
 	if err != nil {
@@ -29,6 +32,7 @@ func ReadBool(buf *Buffer, b *bool) error {
 	}
 }
 
+// ReadString read a string value into a pointer
 func ReadString(buf *Buffer, s *string) error {
 	err := checkType(buf, STRING)
 	if err != nil {
@@ -38,6 +42,7 @@ func ReadString(buf *Buffer, s *string) error {
 	return err
 }
 
+// ReadByte read a byte value into a pointer
 func ReadByte(buf *Buffer, b *byte) error {
 	err := checkType(buf, BYTE)
 	if err != nil {
@@ -47,6 +52,7 @@ func ReadByte(buf *Buffer, b *byte) error {
 	return err
 }
 
+// ReadBytes read a byte slice value into a pointer
 func ReadBytes(buf *Buffer, bytesAddr *[]byte) error {
 	err := checkType(buf, BYTES)
 	if err != nil {
@@ -56,6 +62,7 @@ func ReadBytes(buf *Buffer, bytesAddr *[]byte) error {
 	return err
 }
 
+// ReadInt16 read a int16 value into a pointer
 func ReadInt16(buf *Buffer, i *int16) error {
 	err := checkType(buf, INT16)
 	if err != nil {
@@ -73,6 +80,7 @@ func ReadInt(buf *Buffer, i *int) error {
 	return err
 }
 
+// ReadInt32 read a int32 value into a pointer
 func ReadInt32(buf *Buffer, i *int32) error {
 	err := checkType(buf, INT32)
 	if err != nil {
@@ -82,6 +90,7 @@ func ReadInt32(buf *Buffer, i *int32) error {
 	return err
 }
 
+// ReadInt64 read a int64 value into a pointer
 func ReadInt64(buf *Buffer, i *int64) error {
 	err := checkType(buf, INT64)
 	if err != nil {
@@ -91,6 +100,7 @@ func ReadInt64(buf *Buffer, i *int64) error {
 	return err
 }
 
+// ReadFloat32 read a float32 value into a pointer
 func ReadFloat32(buf *Buffer, f *float32) error {
 	err := checkType(buf, FLOAT32)
 	if err != nil {
@@ -100,6 +110,7 @@ func ReadFloat32(buf *Buffer, f *float32) error {
 	return err
 }
 
+// ReadFloat64 read a float64 value into a pointer
 func ReadFloat64(buf *Buffer, f *float64) error {
 	err := checkType(buf, FLOAT64)
 	if err != nil {
@@ -109,6 +120,7 @@ func ReadFloat64(buf *Buffer, f *float64) error {
 	return err
 }
 
+// ReadMessageByField can read all message fields according to the ReadFieldsFunc
 func ReadMessageByField(buf *Buffer, readField ReadFieldsFunc) error {
 	total, err := buf.ReadInt()
 	if err != nil {
@@ -148,7 +160,7 @@ func checkType(buf *Buffer, expect byte) error {
 
 /*
 ReadValue read A value from Buffer based v.
-v can be A reflect type or an address which recieve the deserialized value.
+v can be A reflect type or an address which receive the deserialized value.
 */
 func ReadValue(buf *Buffer, v interface{}) (interface{}, error) {
 	tp, err := buf.ReadByte()

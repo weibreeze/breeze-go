@@ -6,8 +6,10 @@ import (
 	"reflect"
 )
 
+// WriteFieldsFunc is a func interface of how to write all fields of a breeze message to the buffer.
 type WriteFieldsFunc func(buf *Buffer)
 
+// WriteBool write a bool value into the buffer
 func WriteBool(buf *Buffer, b bool) {
 	if b {
 		buf.WriteByte(TRUE)
@@ -16,43 +18,51 @@ func WriteBool(buf *Buffer, b bool) {
 	}
 }
 
+// WriteString write a string value into the buffer
 func WriteString(buf *Buffer, s string) {
 	buf.WriteByte(STRING)
 	buf.WriteZigzag32(uint32(len(s)))
 	buf.Write([]byte(s))
 }
 
+// WriteByte write a byte value into the buffer
 func WriteByte(buf *Buffer, b byte) {
 	buf.WriteByte(BYTE)
 	buf.WriteByte(b)
 }
 
+// WriteBytes write a byte slice into the buffer
 func WriteBytes(buf *Buffer, bytes []byte) {
 	buf.WriteByte(BYTES)
 	buf.WriteUint32(uint32(len(bytes)))
 	buf.Write(bytes)
 }
 
+// WriteInt16 write a uint16 value into the buffer
 func WriteInt16(buf *Buffer, ui uint16) {
 	buf.WriteByte(INT16)
 	buf.WriteUint16(ui)
 }
 
+// WriteInt32 write a uint32 value into the buffer
 func WriteInt32(buf *Buffer, ui uint32) {
 	buf.WriteByte(INT32)
 	buf.WriteZigzag32(ui)
 }
 
+// WriteInt64 write a uint64 value into the buffer
 func WriteInt64(buf *Buffer, ui uint64) {
 	buf.WriteByte(INT64)
 	buf.WriteZigzag64(ui)
 }
 
+// WriteFloat32 write a float32 value into the buffer
 func WriteFloat32(buf *Buffer, f float32) {
 	buf.WriteByte(FLOAT32)
 	buf.WriteUint32(math.Float32bits(float32(f)))
 }
 
+// WriteFloat64 write a float64 value into the buffer
 func WriteFloat64(buf *Buffer, f float64) {
 	buf.WriteByte(FLOAT64)
 	buf.WriteUint64(math.Float64bits(f))
@@ -67,6 +77,7 @@ func WriteValue(buf *Buffer, v interface{}) error {
 	if msg, ok := v.(Message); ok {
 		return msg.WriteTo(buf)
 	}
+
 	var rv reflect.Value
 	if nrv, ok := v.(reflect.Value); ok {
 		rv = nrv
@@ -85,11 +96,14 @@ func WriteValue(buf *Buffer, v interface{}) error {
 		rv = rv.Elem()
 		k = rv.Kind()
 	}
+	return writeByKind(buf, k, rv)
+}
+
+func writeByKind(buf *Buffer, k reflect.Kind, rv reflect.Value) error {
 	if k == reflect.Interface {
 		rv = reflect.ValueOf(rv.Interface())
 		k = rv.Kind()
 	}
-
 	switch k {
 	case reflect.String:
 		WriteString(buf, rv.String())
@@ -122,6 +136,7 @@ func WriteValue(buf *Buffer, v interface{}) error {
 	return nil
 }
 
+// WriteMessage write a breeze message according to WriteFieldsFunc
 func WriteMessage(buf *Buffer, name string, fieldsFunc WriteFieldsFunc) (err error) {
 	defer func() {
 		if inner := recover(); inner != nil {
@@ -136,6 +151,7 @@ func WriteMessage(buf *Buffer, name string, fieldsFunc WriteFieldsFunc) (err err
 	return err
 }
 
+// WriteMessageField write a message field into buffer
 func WriteMessageField(buf *Buffer, index int, v interface{}) {
 	if v != nil {
 		buf.WriteZigzag32(uint32(index))

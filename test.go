@@ -1,5 +1,6 @@
 package breeze
 
+// TestMsg is a breeze message for test
 type TestMsg struct {
 	I int
 	S string
@@ -7,10 +8,12 @@ type TestMsg struct {
 	A []*TestSubMsg
 }
 
+// GetAlias return breeze message alias for multi language compat
 func (t *TestMsg) GetAlias() string {
 	return "TestMsg"
 }
 
+// WriteTo write breeze message to breeze buffer.
 func (t *TestMsg) WriteTo(buf *Buffer) error {
 	return WriteMessage(buf, "TestMsg", func(buffer *Buffer) {
 		WriteMessageField(buf, 1, t.I)
@@ -20,6 +23,7 @@ func (t *TestMsg) WriteTo(buf *Buffer) error {
 	})
 }
 
+// ReadFrom read a breeze message from breeze buffer
 func (t *TestMsg) ReadFrom(buf *Buffer) error {
 	return ReadMessageByField(buf, func(buf *Buffer, index int) (err error) {
 		switch index {
@@ -40,14 +44,17 @@ func (t *TestMsg) ReadFrom(buf *Buffer) error {
 	})
 }
 
+// GetName get the name of breeze message
 func (t *TestMsg) GetName() string {
 	return "TestMsg"
 }
 
+// GetSchema get breeze message's schema
 func (t *TestMsg) GetSchema() *Schema {
 	panic("implement me")
 }
 
+// TestSubMsg is a breeze message for test
 type TestSubMsg struct {
 	S     string
 	I     int
@@ -62,10 +69,12 @@ type TestSubMsg struct {
 	B     bool
 }
 
+// GetAlias return breeze message alias for multi language compat
 func (t *TestSubMsg) GetAlias() string {
 	return "TestSubMsg"
 }
 
+// WriteTo write breeze message to breeze buffer.
 func (t *TestSubMsg) WriteTo(buf *Buffer) error {
 	return WriteMessage(buf, "TestSubMsg", func(buffer *Buffer) {
 		WriteMessageField(buf, 1, t.S)
@@ -82,6 +91,7 @@ func (t *TestSubMsg) WriteTo(buf *Buffer) error {
 	})
 }
 
+// ReadFrom read a breeze message from breeze buffer
 func (t *TestSubMsg) ReadFrom(buf *Buffer) error {
 	return ReadMessageByField(buf, func(buf *Buffer, index int) (err error) {
 		switch index {
@@ -117,10 +127,12 @@ func (t *TestSubMsg) ReadFrom(buf *Buffer) error {
 	})
 }
 
+// GetName get the name of breeze message
 func (t *TestSubMsg) GetName() string {
 	return "TestSubMsg"
 }
 
+// GetSchema get breeze message's schema
 func (t *TestSubMsg) GetSchema() *Schema {
 	panic("implement me")
 }

@@ -1,6 +1,7 @@
 package breeze
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"strconv"
@@ -427,19 +428,12 @@ func TestWriteMessage(t *testing.T) {
 		fieldsFunc WriteFieldsFunc
 	}
 	name := "test message"
-	m := getTestSubMsg()
 	tests := []struct {
 		name    string
 		args    args
 		wantErr bool
 	}{
-		{"message", args{NewBuffer(32), name, func(buf *Buffer) {
-			WriteMessageField(buf, 1, m.S)
-			WriteMessageField(buf, 2, m.I)
-			WriteMessageField(buf, 3, m.I64)
-			WriteMessageField(buf, 4, m.F32)
-			WriteMessageField(buf, 5, m.F64)
-		}}, false},
+		{"message", args{NewBuffer(32), name, writeField}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -460,45 +454,60 @@ func TestWriteMessage(t *testing.T) {
 			if rname != name {
 				t.Errorf("read wrong message name. expect:%v, real:%v", name, rname)
 			}
-			ReadMessageByField(newBuf, func(buf *Buffer, index int) error {
-				switch index {
-				case 1:
-					var v string
-					ReadString(buf, &v)
-					if v != m.S {
-						t.Errorf("read wrong message name. expect:%v, real:%v", m.S, v)
-					}
-				case 2:
-					var v int
-					ReadInt(buf, &v)
-					if v != m.I {
-						t.Errorf("read wrong message name. expect:%v, real:%v", m.I, v)
-					}
-				case 3:
-					var v int64
-					ReadInt64(buf, &v)
-					if v != m.I64 {
-						t.Errorf("read wrong message name. expect:%v, real:%v", m.I64, v)
-					}
-				case 4:
-					var v float32
-					ReadFloat32(buf, &v)
-					if v != m.F32 {
-						t.Errorf("read wrong message name. expect:%v, real:%v", m.F32, v)
-					}
-				case 5:
-					var v float64
-					ReadFloat64(buf, &v)
-					if v != m.F64 {
-						t.Errorf("read wrong message name. expect:%v, real:%v", m.F64, v)
-					}
-				default:
-					t.Errorf("read wrong message index :%v", index)
-				}
-				return nil
-			})
+			err = ReadMessageByField(newBuf, readField)
+			if err != nil {
+				t.Errorf("read message field fail. err:%v", err)
+			}
 		})
 	}
+}
+
+func writeField(buf *Buffer) {
+	m := getTestSubMsg()
+	WriteMessageField(buf, 1, m.S)
+	WriteMessageField(buf, 2, m.I)
+	WriteMessageField(buf, 3, m.I64)
+	WriteMessageField(buf, 4, m.F32)
+	WriteMessageField(buf, 5, m.F64)
+}
+
+func readField(buf *Buffer, index int) error {
+	m := getTestSubMsg()
+	switch index {
+	case 1:
+		var v string
+		ReadString(buf, &v)
+		if v != m.S {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.S, v)
+		}
+	case 2:
+		var v int
+		ReadInt(buf, &v)
+		if v != m.I {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.I, v)
+		}
+	case 3:
+		var v int64
+		ReadInt64(buf, &v)
+		if v != m.I64 {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.I64, v)
+		}
+	case 4:
+		var v float32
+		ReadFloat32(buf, &v)
+		if v != m.F32 {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.F32, v)
+		}
+	case 5:
+		var v float64
+		ReadFloat64(buf, &v)
+		if v != m.F64 {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.F64, v)
+		}
+	default:
+		return fmt.Errorf("read wrong message index :%v", index)
+	}
+	return nil
 }
 
 func TestWriteValueMessage(t *testing.T) {
@@ -519,14 +528,14 @@ func TestWriteValueMessage(t *testing.T) {
 
 	// read by type
 	newBuf = CreateBuffer(bytes)
-	r, _ := ReadValue(newBuf, reflect.TypeOf(&result))
+	ReadValue(newBuf, reflect.TypeOf(&result))
 	if !reflect.DeepEqual(&result, msg) {
 		t.Errorf("wrong result. expect %v, real %v", msg, result)
 	}
 
 	// test GenericMessage (read by nil)
 	newBuf = CreateBuffer(bytes)
-	r, _ = ReadValue(newBuf, nil)
+	r, _ := ReadValue(newBuf, nil)
 	gm := r.(*GenericMessage)
 	sgm := gm.GetFieldByIndex(3).(map[interface{}]interface{})["m1"].(*GenericMessage)
 	if len(sgm.GetFieldByIndex(10).([]interface{})) != len(msg.M["m1"].List) {
