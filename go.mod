@@ -1,4 +1,4 @@
-module breeze-go
+module github.com/weibreeze/breeze-go
 
 go 1.12
 
