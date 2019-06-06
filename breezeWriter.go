@@ -111,12 +111,18 @@ func writeByKind(buf *Buffer, k reflect.Kind, rv reflect.Value) error {
 		WriteBool(buf, rv.Bool())
 	case reflect.Uint8:
 		WriteByte(buf, byte(rv.Uint()))
-	case reflect.Int16, reflect.Uint16:
+	case reflect.Int16:
 		WriteInt16(buf, uint16(rv.Int()))
-	case reflect.Int, reflect.Int32, reflect.Uint, reflect.Uint32:
+	case reflect.Uint16:
+		WriteInt16(buf, uint16(rv.Uint()))
+	case reflect.Int, reflect.Int32:
 		WriteInt32(buf, uint32(rv.Int()))
-	case reflect.Int64, reflect.Uint64:
+	case reflect.Uint, reflect.Uint32:
+		WriteInt32(buf, uint32(rv.Uint()))
+	case reflect.Int64:
 		WriteInt64(buf, uint64(rv.Int()))
+	case reflect.Uint64:
+		WriteInt64(buf, rv.Uint())
 	case reflect.Float32:
 		WriteFloat32(buf, float32(rv.Float()))
 	case reflect.Float64:

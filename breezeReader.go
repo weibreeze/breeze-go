@@ -212,6 +212,16 @@ func readMessage(buf *Buffer, v interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	if enum, ok := v.(Enum); ok {
+		result, err := enum.ReadEnum(buf, false)
+		if err == nil {
+			rv := reflect.ValueOf(v)
+			if rv.Type().Kind() == reflect.Ptr {
+				rv.Elem().Set(reflect.ValueOf(result))
+			}
+		}
+		return result, err
+	}
 	message, ok := v.(Message)
 	if ok {
 		if message.GetName() != name && message.GetAlias() != name {
@@ -226,7 +236,11 @@ func readMessage(buf *Buffer, v interface{}) (interface{}, error) {
 		if rt.Kind() == reflect.Interface {
 			message = &GenericMessage{Name: name}
 		} else {
-			message, _ = reflect.New(rt).Interface().(Message)
+			newValue := reflect.New(rt).Interface()
+			if enum, ok := newValue.(Enum); ok {
+				return enum.ReadEnum(buf, true)
+			}
+			message, ok = newValue.(Message)
 		}
 	}
 	if message != nil {

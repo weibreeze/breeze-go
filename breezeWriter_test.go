@@ -306,6 +306,9 @@ func TestWriteValueBasic(t *testing.T) {
 	var by = byte(16)
 	var i16 = int16(234)
 	var i32 = int32(2389473)
+	var ui16 = uint16(7892)
+	var ui32 = uint32(78999)
+	var ui64 = uint64(7235441)
 	var i = -2342
 	var i64 = int64(2903402374328432983)
 	var f32 = float32(3.1415)
@@ -336,6 +339,12 @@ func TestWriteValueBasic(t *testing.T) {
 		{"int_addr", args{NewBuffer(32), &i}, false},
 		{"int64", args{NewBuffer(32), i64}, false},
 		{"int64_addr", args{NewBuffer(32), &i64}, false},
+		{"uint16", args{NewBuffer(32), ui16}, false},
+		{"uint16_addr", args{NewBuffer(32), &ui16}, false},
+		{"uint32", args{NewBuffer(32), ui32}, false},
+		{"uint32_addr", args{NewBuffer(32), &ui32}, false},
+		{"uint64", args{NewBuffer(32), ui64}, false},
+		{"uint64_addr", args{NewBuffer(32), &ui64}, false},
 		{"float32", args{NewBuffer(32), f32}, false},
 		{"float32_addr", args{NewBuffer(32), &f32}, false},
 		{"float64", args{NewBuffer(32), f64}, false},
@@ -464,11 +473,11 @@ func TestWriteMessage(t *testing.T) {
 
 func writeField(buf *Buffer) {
 	m := getTestSubMsg()
-	WriteMessageField(buf, 1, m.S)
-	WriteMessageField(buf, 2, m.I)
-	WriteMessageField(buf, 3, m.I64)
-	WriteMessageField(buf, 4, m.F32)
-	WriteMessageField(buf, 5, m.F64)
+	WriteMessageField(buf, 1, m.MyString)
+	WriteMessageField(buf, 2, m.MyInt)
+	WriteMessageField(buf, 3, m.MyInt64)
+	WriteMessageField(buf, 4, m.MyFloat32)
+	WriteMessageField(buf, 5, m.MyFloat64)
 }
 
 func readField(buf *Buffer, index int) error {
@@ -477,32 +486,32 @@ func readField(buf *Buffer, index int) error {
 	case 1:
 		var v string
 		ReadString(buf, &v)
-		if v != m.S {
-			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.S, v)
+		if v != m.MyString {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.MyString, v)
 		}
 	case 2:
 		var v int
 		ReadInt(buf, &v)
-		if v != m.I {
-			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.I, v)
+		if int32(v) != m.MyInt {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.MyInt, v)
 		}
 	case 3:
 		var v int64
 		ReadInt64(buf, &v)
-		if v != m.I64 {
-			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.I64, v)
+		if v != m.MyInt64 {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.MyInt64, v)
 		}
 	case 4:
 		var v float32
 		ReadFloat32(buf, &v)
-		if v != m.F32 {
-			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.F32, v)
+		if v != m.MyFloat32 {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.MyFloat32, v)
 		}
 	case 5:
 		var v float64
 		ReadFloat64(buf, &v)
-		if v != m.F64 {
-			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.F64, v)
+		if v != m.MyFloat64 {
+			return fmt.Errorf("read wrong message name. expect:%v, real:%v", m.MyFloat64, v)
 		}
 	default:
 		return fmt.Errorf("read wrong message index :%v", index)
@@ -538,7 +547,7 @@ func TestWriteValueMessage(t *testing.T) {
 	r, _ := ReadValue(newBuf, nil)
 	gm := r.(*GenericMessage)
 	sgm := gm.GetFieldByIndex(3).(map[interface{}]interface{})["m1"].(*GenericMessage)
-	if len(sgm.GetFieldByIndex(10).([]interface{})) != len(msg.M["m1"].List) {
+	if len(sgm.GetFieldByIndex(10).([]interface{})) != len(msg.MyMap["m1"].MyArray) {
 		t.Errorf("read wrong message. expect:%v, real:%v", gm, msg)
 	}
 }

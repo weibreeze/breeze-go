@@ -46,6 +46,12 @@ type Message interface {
 	GetSchema() *Schema
 }
 
+// Enum is a special breeze message, it can read a `new` enum value from breeze buffer. Enum should be declared as pointer not value, thus the default value of Enum will be null in serialization.
+type Enum interface {
+	Message
+	ReadEnum(buf *Buffer, asAddr bool) (Enum, error)
+}
+
 // GenericMessage is a generic breeze message. it can receive any breeze message
 type GenericMessage struct {
 	Name   string
