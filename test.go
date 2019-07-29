@@ -19,8 +19,8 @@ const (
 type MyEnum int
 
 func (m MyEnum) WriteTo(buf *Buffer) error {
-	return WriteMessage(buf, m.GetName(), func(funcBuf *Buffer) {
-		WriteMessageField(funcBuf, 1, int(m))
+	return WriteMessageWithoutType(buf, func(buf *Buffer) {
+		WriteInt32Field(buf, 1, int32(m))
 	})
 }
 
@@ -29,13 +29,13 @@ func (m MyEnum) ReadFrom(buf *Buffer) error {
 }
 
 func (m MyEnum) ReadEnum(buf *Buffer, asAddr bool) (Enum, error) {
-	var number int
-	e := ReadMessageByField(buf, func(funcBuf *Buffer, index int) (err error) {
+	var number int32
+	e := ReadMessageField(buf, func(buf *Buffer, index int) (err error) {
 		switch index {
 		case 1:
-			err = ReadInt(buf, &number)
+			err = ReadInt32(buf, &number)
 		default: //skip unknown field
-			_, err = ReadValue(funcBuf, nil)
+			_, err = ReadValue(buf, nil)
 		}
 		return err
 	})
@@ -49,7 +49,7 @@ func (m MyEnum) ReadEnum(buf *Buffer, asAddr bool) (Enum, error) {
 		case 3:
 			result = MyEnumE3
 		default:
-			return nil, errors.New("unknown enum number " + strconv.Itoa(number))
+			return nil, errors.New("unknown enum number " + strconv.Itoa(int(number)))
 		}
 		if asAddr {
 			return &result, nil
@@ -82,56 +82,120 @@ type TestMsg struct {
 }
 
 func (t *TestMsg) WriteTo(buf *Buffer) error {
-	return WriteMessage(buf, t.GetName(), func(funcBuf *Buffer) {
-		if t.MyInt != 0 {
-			WriteMessageField(funcBuf, 1, t.MyInt)
-		}
-		if t.MyString != "" {
-			WriteMessageField(funcBuf, 2, t.MyString)
-		}
+	return WriteMessageWithoutType(buf, func(buf *Buffer) {
+		WriteInt32Field(buf, 1, t.MyInt)
+		WriteStringField(buf, 2, t.MyString)
 		if len(t.MyMap) > 0 {
-			WriteMessageField(funcBuf, 3, t.MyMap)
+			WriteMapField(buf, 3, len(t.MyMap), func(buf *Buffer) {
+				first := true
+				for k1, v1 := range t.MyMap {
+					if first {
+						WriteStringType(buf)
+						WriteMessageType(buf, v1.GetName())
+						first = false
+					}
+					WriteString(buf, k1, false)
+					v1.WriteTo(buf)
+				}
+			})
 		}
 		if len(t.MyArray) > 0 {
-			WriteMessageField(funcBuf, 4, t.MyArray)
+			WriteArrayField(buf, 4, len(t.MyArray), func(buf *Buffer) {
+				first := true
+				for _, v1 := range t.MyArray {
+					if first {
+						WriteMessageType(buf, v1.GetName())
+						first = false
+					}
+					v1.WriteTo(buf)
+				}
+			})
 		}
 		if t.SubMsg != nil {
-			WriteMessageField(funcBuf, 5, t.SubMsg)
+			WriteMessageField(buf, 5, t.SubMsg)
 		}
 		if t.MyEnum != nil {
-			WriteMessageField(funcBuf, 6, t.MyEnum)
+			WriteMessageField(buf, 6, t.MyEnum)
 		}
 		if len(t.EnumArray) > 0 {
-			WriteMessageField(funcBuf, 7, t.EnumArray)
+			WriteArrayField(buf, 7, len(t.EnumArray), func(buf *Buffer) {
+				first := true
+				for _, v1 := range t.EnumArray {
+					if first {
+						WriteMessageType(buf, v1.GetName())
+						first = false
+					}
+					v1.WriteTo(buf)
+				}
+			})
 		}
 	})
 }
 
 func (t *TestMsg) ReadFrom(buf *Buffer) error {
-	return ReadMessageByField(buf, func(funcBuf *Buffer, index int) (err error) {
+	return ReadMessageField(buf, func(buf *Buffer, index int) (err error) {
 		switch index {
 		case 1:
-			_, err = ReadValue(funcBuf, &t.MyInt)
+			err = ReadInt32(buf, &t.MyInt)
 		case 2:
-			_, err = ReadValue(funcBuf, &t.MyString)
+			err = ReadString(buf, &t.MyString)
 		case 3:
-			t.MyMap = make(map[string]*TestSubMsg, 16)
-			_, err = ReadValue(funcBuf, &t.MyMap)
+			size, err := ReadPackedSize(buf, true)
+			if err != nil {
+				return err
+			}
+			t.MyMap = make(map[string]*TestSubMsg, size)
+			err = ReadPacked(buf, size, true, func(buf *Buffer) error {
+				k1, err := ReadStringWithoutType(buf)
+				if err != nil {
+					return err
+				}
+				v1 := &TestSubMsg{}
+				err = v1.ReadFrom(buf)
+				if err == nil {
+					t.MyMap[k1] = v1
+				}
+				return err
+			})
 		case 4:
-			t.MyArray = make([]*TestSubMsg, 0, 16)
-			_, err = ReadValue(funcBuf, &t.MyArray)
+			size, err := ReadPackedSize(buf, true)
+			if err != nil {
+				return err
+			}
+			t.MyArray = make([]*TestSubMsg, 0, size)
+			err = ReadPacked(buf, size, false, func(buf *Buffer) error {
+				v1 := &TestSubMsg{}
+				err = v1.ReadFrom(buf)
+				if err == nil {
+					t.MyArray = append(t.MyArray, v1)
+				}
+				return err
+			})
 		case 5:
 			t.SubMsg = &TestSubMsg{}
-			_, err = ReadValue(funcBuf, t.SubMsg)
+			return ReadByMessage(buf, t.SubMsg)
 		case 6:
 			var value MyEnum
-			_, err = ReadValue(funcBuf, &value)
-			t.MyEnum = &value
+			result, err := ReadByEnum(buf, value, true)
+			if err == nil {
+				t.MyEnum = result.(*MyEnum)
+			}
 		case 7:
-			t.EnumArray = make([]*MyEnum, 0, 16)
-			_, err = ReadValue(funcBuf, &t.EnumArray)
+			size, err := ReadPackedSize(buf, true)
+			if err != nil {
+				return err
+			}
+			t.EnumArray = make([]*MyEnum, 0, size)
+			err = ReadPacked(buf, size, false, func(buf *Buffer) error {
+				var enum MyEnum
+				result, err := enum.ReadEnum(buf, true)
+				if err == nil {
+					t.EnumArray = append(t.EnumArray, result.(*MyEnum))
+				}
+				return err
+			})
 		default: //skip unknown field
-			_, err = ReadValue(funcBuf, nil)
+			_, err = ReadValue(buf, nil)
 		}
 		return err
 	})
@@ -164,73 +228,102 @@ type TestSubMsg struct {
 }
 
 func (t *TestSubMsg) WriteTo(buf *Buffer) error {
-	return WriteMessage(buf, t.GetName(), func(funcBuf *Buffer) {
-		if t.MyString != "" {
-			WriteMessageField(funcBuf, 1, t.MyString)
-		}
-		if t.MyInt != 0 {
-			WriteMessageField(funcBuf, 2, t.MyInt)
-		}
-		if t.MyInt64 != 0 {
-			WriteMessageField(funcBuf, 3, t.MyInt64)
-		}
-		if t.MyFloat32 != 0 {
-			WriteMessageField(funcBuf, 4, t.MyFloat32)
-		}
-		if t.MyFloat64 != 0 {
-			WriteMessageField(funcBuf, 5, t.MyFloat64)
-		}
-		if t.MyByte != 0 {
-			WriteMessageField(funcBuf, 6, t.MyByte)
-		}
-		if len(t.MyBytes) > 0 {
-			WriteMessageField(funcBuf, 7, t.MyBytes)
-		}
+	return WriteMessageWithoutType(buf, func(buf *Buffer) {
+		WriteStringField(buf, 1, t.MyString)
+		WriteInt32Field(buf, 2, t.MyInt)
+		WriteInt64Field(buf, 3, t.MyInt64)
+		WriteFloat32Field(buf, 4, t.MyFloat32)
+		WriteFloat64Field(buf, 5, t.MyFloat64)
+		WriteByteField(buf, 6, t.MyByte)
+		WriteBytesField(buf, 7, t.MyBytes)
 		if len(t.MyMap1) > 0 {
-			WriteMessageField(funcBuf, 8, t.MyMap1)
+			WriteMapField(buf, 8, len(t.MyMap1), func(buf *Buffer) {
+				WriteStringType(buf)
+				WriteBytesType(buf)
+				for k1, v1 := range t.MyMap1 {
+					WriteString(buf, k1, false)
+					WriteBytes(buf, v1, false)
+				}
+			})
 		}
 		if len(t.MyMap2) > 0 {
-			WriteMessageField(funcBuf, 9, t.MyMap2)
+			WriteMapField(buf, 9, len(t.MyMap2), func(buf *Buffer) {
+				WriteInt32Type(buf)
+				WritePackedArrayType(buf)
+				for k1, v1 := range t.MyMap2 {
+					WriteInt32(buf, k1, false)
+					WritePackedArray(buf, false, len(v1), func(buf *Buffer) {
+						WriteInt32ArrayElems(buf, v1)
+					})
+				}
+			})
 		}
 		if len(t.MyArray) > 0 {
-			WriteMessageField(funcBuf, 10, t.MyArray)
+			WriteArrayField(buf, 10, len(t.MyArray), func(buf *Buffer) {
+				WriteInt32ArrayElems(buf, t.MyArray)
+			})
 		}
-		if t.MyBool {
-			WriteMessageField(funcBuf, 11, t.MyBool)
-		}
+		WriteBoolField(buf, 11, t.MyBool)
 	})
 }
 
 func (t *TestSubMsg) ReadFrom(buf *Buffer) error {
-	return ReadMessageByField(buf, func(funcBuf *Buffer, index int) (err error) {
+	return ReadMessageField(buf, func(buf *Buffer, index int) (err error) {
 		switch index {
 		case 1:
-			_, err = ReadValue(funcBuf, &t.MyString)
+			err = ReadString(buf, &t.MyString)
 		case 2:
-			_, err = ReadValue(funcBuf, &t.MyInt)
+			err = ReadInt32(buf, &t.MyInt)
 		case 3:
-			_, err = ReadValue(funcBuf, &t.MyInt64)
+			err = ReadInt64(buf, &t.MyInt64)
 		case 4:
-			_, err = ReadValue(funcBuf, &t.MyFloat32)
+			err = ReadFloat32(buf, &t.MyFloat32)
 		case 5:
-			_, err = ReadValue(funcBuf, &t.MyFloat64)
+			err = ReadFloat64(buf, &t.MyFloat64)
 		case 6:
-			_, err = ReadValue(funcBuf, &t.MyByte)
+			err = ReadByte(buf, &t.MyByte)
 		case 7:
-			_, err = ReadValue(funcBuf, &t.MyBytes)
+			err = ReadBytes(buf, &t.MyBytes)
 		case 8:
-			t.MyMap1 = make(map[string][]byte, 16)
-			_, err = ReadValue(funcBuf, &t.MyMap1)
+			size, err := ReadPackedSize(buf, true)
+			if err != nil {
+				return err
+			}
+			t.MyMap1 = make(map[string][]byte, size)
+			err = ReadPacked(buf, size, true, func(buf *Buffer) error {
+				k1, err := ReadStringWithoutType(buf)
+				if err != nil {
+					return err
+				}
+				v1, err := ReadBytesWithoutType(buf)
+				if err == nil {
+					t.MyMap1[k1] = v1
+				}
+				return err
+			})
 		case 9:
-			t.MyMap2 = make(map[int32][]int32, 16)
-			_, err = ReadValue(funcBuf, &t.MyMap2)
+			size, err := ReadPackedSize(buf, true)
+			if err != nil {
+				return err
+			}
+			t.MyMap2 = make(map[int32][]int32, size)
+			err = ReadPacked(buf, size, true, func(buf *Buffer) error {
+				k1, err := ReadInt32WithoutType(buf)
+				if err != nil {
+					return err
+				}
+				v1, err := ReadInt32Array(buf, false)
+				if err == nil {
+					t.MyMap2[k1] = v1
+				}
+				return err
+			})
 		case 10:
-			t.MyArray = make([]int32, 0, 16)
-			_, err = ReadValue(funcBuf, &t.MyArray)
+			t.MyArray, err = ReadInt32Array(buf, true)
 		case 11:
-			_, err = ReadValue(funcBuf, &t.MyBool)
+			err = ReadBool(buf, &t.MyBool)
 		default: //skip unknown field
-			_, err = ReadValue(funcBuf, nil)
+			_, err = ReadValue(buf, nil)
 		}
 		return err
 	})
@@ -281,7 +374,7 @@ func init() {
 
 func getTestMsg() *TestMsg {
 	tsm := getTestSubMsg()
-	t := &TestMsg{MyInt: 123, MyString: "jiernoce"}
+	t := &TestMsg{MyInt: 12, MyString: "jiernoce"}
 	t.MyMap = make(map[string]*TestSubMsg)
 	t.MyMap["m1"] = tsm
 	t.MyArray = make([]*TestSubMsg, 0, 12)
@@ -295,14 +388,18 @@ func getTestMsg() *TestMsg {
 }
 
 func getTestSubMsg() *TestSubMsg {
-	tsm := &TestSubMsg{MyString: "uoiwer", MyInt: 2134, MyInt64: 234, MyFloat32: 23.434, MyFloat64: 8923.234234, MyByte: 5, MyBytes: []byte("ipower"), MyBool: true}
+	return getTestSubMsgByInt(2134)
+}
+
+func getTestSubMsgByInt(i int32) *TestSubMsg {
+	tsm := &TestSubMsg{MyString: "uoiwer", MyInt: i, MyInt64: 234, MyFloat32: 23.434, MyFloat64: 8923.234234, MyByte: 5, MyBytes: []byte("ipower"), MyBool: true}
 	im1 := make(map[string][]byte, 16)
 	im1["jdie"] = []byte("ierjkkkd")
 	im1["jddfwwie"] = []byte("ieere9943rjkkkd")
 	tsm.MyMap1 = im1
 	il := make([]int32, 0, 12)
 	il = append(il, 34)
-	il = append(il, 56)
+	il = append(il, -15)
 	im2 := make(map[int32][]int32, 16)
 	im2[12] = il
 	im2[3] = []int32{34, 45, 657}
@@ -310,4 +407,12 @@ func getTestSubMsg() *TestSubMsg {
 	tsm.MyMap2 = im2
 	tsm.MyArray = []int32{234, 6456, 234, 6859}
 	return tsm
+}
+
+func GetBenchData(size int) *TestMsg {
+	testmsg := getTestMsg()
+	for i := 0; i < size; i++ {
+		testmsg.MyMap["k"+strconv.Itoa(i)] = getTestSubMsgByInt(int32(i))
+	}
+	return testmsg
 }

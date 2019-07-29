@@ -6,35 +6,57 @@ import (
 
 // breeze type
 const (
-	NULL = iota
-	TRUE
-	FALSE
-	STRING
-	BYTE
-	BYTES
-	INT16
-	INT32
-	INT64
-	FLOAT32
-	FLOAT64
+	StringType              = 0x3f
+	DirectStringMinType     = 0x00
+	DirectStringMaxType     = 0x3e
+	Int32Type               = 0x7f
+	DirectInt32MinType      = 0x40
+	DirectInt32MaxType      = 0x7e
+	Int64Type               = 0x98
+	DirectInt64MinType      = 0x80
+	DirectInt64MaxType      = 0x97
+	NullType                = 0x99
+	TrueType                = 0x9a
+	FalseType               = 0x9b
+	ByteType                = 0x9c
+	BytesType               = 0x9d
+	Int16Type               = 0x9e
+	Float32Type             = 0x9f
+	Float64Type             = 0xa0
+	MapType                 = 0xd9
+	ArrayType               = 0xda
+	PackedMapType           = 0xdb
+	PackedArrayType         = 0xdc
+	SchemaType              = 0xdd
+	MessageType             = 0xde
+	RefMessageType          = 0xdf
+	DirectRefMessageMaxType = 0xff
+)
 
-	MAP     = 20
-	ARRAY   = 21
-	MESSAGE = 22
-	SCHEMA  = 23
+// direct value limit
+const (
+	Int32Zero                int32 = 0x50
+	Int64Zero                int64 = 0x88
+	DirectStringMaxLength          = DirectStringMaxType
+	DirectInt32MinValue            = DirectInt32MinType - Int32Zero
+	DirectInt32MaxValue            = DirectInt32MaxType - Int32Zero
+	DirectInt64MinValue            = DirectInt64MinType - Int64Zero
+	DirectInt64MaxValue            = DirectInt64MaxType - Int64Zero
+	DirectRefMessageMaxValue       = DirectRefMessageMaxType - RefMessageType
 )
 
 // configure
 var (
 	MaxWriteCount = 0 // TODO check circular reference
+	MaxElemSize   = 100000
 )
 
 // common errors
 var (
-	ErrNoSchema  = errors.New("Breeze: not have breeze schema")
-	ErrWrongSize = errors.New("Breeze: read byte size not correct")
-	ErrNotEnough = errors.New("Breeze: not enough bytes")
-	ErrOverflow  = errors.New("Breeze: integer overflow")
+	ErrNoSchema  = errors.New("breeze: not have breeze schema")
+	ErrWrongSize = errors.New("breeze: read byte size not correct")
+	ErrNotEnough = errors.New("breeze: not enough bytes")
+	ErrOverflow  = errors.New("breeze: integer overflow")
 )
 
 // Message is a interface of breeze message. all breeze message must implement Message
@@ -52,6 +74,40 @@ type Enum interface {
 	ReadEnum(buf *Buffer, asAddr bool) (Enum, error)
 }
 
+// Context is a context of breeze encode/decode in BreezeBuffer
+type Context struct {
+	messageTypeRefCount int
+	messageTypeRefName  map[int]string
+	messageTypeRefIndex map[string]int
+}
+
+func (c *Context) getMessageTypeName(index int) (name string) {
+	if c.messageTypeRefName != nil {
+		name = c.messageTypeRefName[index]
+	}
+	return name
+}
+
+func (c *Context) getMessageTypeIndex(name string) int {
+	if c.messageTypeRefIndex != nil {
+		index, ok := c.messageTypeRefIndex[name]
+		if ok {
+			return index
+		}
+	}
+	return -1
+}
+
+func (c *Context) putMessageType(name string) {
+	if c.messageTypeRefName == nil {
+		c.messageTypeRefName = make(map[int]string, 16)
+		c.messageTypeRefIndex = make(map[string]int, 16)
+	}
+	c.messageTypeRefCount++
+	c.messageTypeRefName[c.messageTypeRefCount] = name
+	c.messageTypeRefIndex[name] = c.messageTypeRefCount
+}
+
 // GenericMessage is a generic breeze message. it can receive any breeze message
 type GenericMessage struct {
 	Name   string
@@ -60,23 +116,23 @@ type GenericMessage struct {
 	fields map[int]interface{}
 }
 
-// GetAlias return breeze message alias for multi language compat
+// GetAlias return breeze message alias for multi language compatible
 func (g *GenericMessage) GetAlias() string {
 	return g.Alias
 }
 
 // WriteTo write breeze message to breeze buffer.
 func (g *GenericMessage) WriteTo(buf *Buffer) error {
-	return WriteMessage(buf, g.Name, func(buf *Buffer) {
+	return WriteMessageWithoutType(buf, func(buf *Buffer) {
 		for k, v := range g.fields {
-			WriteMessageField(buf, k, v)
+			WriteField(buf, k, v)
 		}
 	})
 }
 
 // ReadFrom read a breeze message from breeze buffer
 func (g *GenericMessage) ReadFrom(buf *Buffer) error {
-	return ReadMessageByField(buf, func(buf *Buffer, index int) (err error) {
+	return ReadMessageField(buf, func(buf *Buffer, index int) (err error) {
 		v, err := ReadValue(buf, nil)
 		if err != nil {
 			return err

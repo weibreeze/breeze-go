@@ -8,21 +8,22 @@ import (
 // Buffer is A variable-sized buffer of bytes with Read and Write methods.
 // Buffer is not thread safe for multi goroutine operation.
 type Buffer struct {
-	buf   []byte // contents are the bytes buf[0 : woff] in write, are the bytes buf[roff: len(buf)] in read
-	rpos  int    // read position
-	wpos  int    // write position
-	order binary.ByteOrder
-	temp  []byte
+	buf     []byte // contents are the bytes buf[0 : wpos] in write, are the bytes buf[rpos: len(buf)] in read
+	rpos    int    // read position
+	wpos    int    // write position
+	order   binary.ByteOrder
+	temp    []byte
+	context *Context
 }
 
 // NewBuffer create A empty Buffer with initial size
-func NewBuffer(initsize int) *Buffer {
-	return NewBufferWithOrder(initsize, binary.BigEndian)
+func NewBuffer(initSize int) *Buffer {
+	return NewBufferWithOrder(initSize, binary.BigEndian)
 }
 
 // NewBufferWithOrder create A empty Buffer with initial size and byte order
-func NewBufferWithOrder(initsize int, order binary.ByteOrder) *Buffer {
-	return &Buffer{buf: make([]byte, initsize),
+func NewBufferWithOrder(initSize int, order binary.ByteOrder) *Buffer {
+	return &Buffer{buf: make([]byte, initSize),
 		order: order,
 		temp:  make([]byte, 8),
 	}
@@ -77,11 +78,13 @@ func (b *Buffer) WriteByte(c byte) {
 // Write write A byte array append the Buffer, and the wpos will increase len(bytes)
 func (b *Buffer) Write(bytes []byte) {
 	l := len(bytes)
-	if len(b.buf) < b.wpos+l {
-		b.grow(l)
+	if l > 0 {
+		if len(b.buf) < b.wpos+l {
+			b.grow(l)
+		}
+		copy(b.buf[b.wpos:], bytes)
+		b.wpos += l
 	}
-	copy(b.buf[b.wpos:], bytes)
-	b.wpos += l
 }
 
 // WriteUint16 write A uint16 append the Buffer according to buffer's order
@@ -116,16 +119,16 @@ func (b *Buffer) WriteUint64(u uint64) {
 
 // WriteZigzag32 write a uint32 append to the Buffer with zigzag algorithm
 func (b *Buffer) WriteZigzag32(u uint32) int {
-	return b.WriteVarint(uint64((u << 1) ^ uint32(int32(u)>>31)))
+	return b.WriteVarInt(uint64((u << 1) ^ uint32(int32(u)>>31)))
 }
 
 // WriteZigzag64 write a uint64 append to the Buffer with zigzag algorithm
 func (b *Buffer) WriteZigzag64(u uint64) int {
-	return b.WriteVarint(uint64((u << 1) ^ uint64(int64(u)>>63)))
+	return b.WriteVarInt(uint64((u << 1) ^ uint64(int64(u)>>63)))
 }
 
-// WriteVarint write a uint64 into buffer with variable length
-func (b *Buffer) WriteVarint(u uint64) int {
+// WriteVarInt write a uint64 into buffer with variable length
+func (b *Buffer) WriteVarInt(u uint64) int {
 	l := 0
 	for u >= 1<<7 {
 		b.WriteByte(uint8(u&0x7f | 0x80))
@@ -143,7 +146,7 @@ func (b *Buffer) grow(n int) {
 	b.buf = buf
 }
 
-// Bytes return a bytes slice of under bytebuffer.
+// Bytes return a bytes slice of under byte buffer.
 func (b *Buffer) Bytes() []byte { return b.buf[:b.wpos] }
 
 // Read read buffer's byte to byte array. return value n is read size.
@@ -206,9 +209,9 @@ func (b *Buffer) ReadUint64() (n uint64, err error) {
 	return n, nil
 }
 
-// ReadZigzag64 read a zigzaged uint64 from buffer.
+// ReadZigzag64 read a zigzag uint64 from buffer.
 func (b *Buffer) ReadZigzag64() (x uint64, err error) {
-	x, err = b.ReadVarint()
+	x, err = b.ReadVarInt()
 	if err != nil {
 		return
 	}
@@ -216,9 +219,9 @@ func (b *Buffer) ReadZigzag64() (x uint64, err error) {
 	return
 }
 
-// ReadZigzag32 read a zigzaged uint32 from buffer.
+// ReadZigzag32 read a zigzag uint32 from buffer.
 func (b *Buffer) ReadZigzag32() (x uint64, err error) {
-	x, err = b.ReadVarint()
+	x, err = b.ReadVarInt()
 	if err != nil {
 		return
 	}
@@ -226,8 +229,8 @@ func (b *Buffer) ReadZigzag32() (x uint64, err error) {
 	return
 }
 
-// ReadVarint read a variable length uint64 form buffer
-func (b *Buffer) ReadVarint() (x uint64, err error) {
+// ReadVarInt read a variable length uint64 form buffer
+func (b *Buffer) ReadVarInt() (x uint64, err error) {
 	var temp byte
 	for offset := uint(0); offset < 64; offset += 7 {
 		temp, err = b.ReadByte()
@@ -280,5 +283,13 @@ func (b *Buffer) Remain() int { return b.wpos - b.rpos }
 // Len return the len of buffer' bytes,
 func (b *Buffer) Len() int { return b.wpos - 0 }
 
-// Cap return the capacity of the under bytebuffer
+// Cap return the capacity of the under byte buffer
 func (b *Buffer) Cap() int { return cap(b.buf) }
+
+// GetContext get breeze context
+func (b *Buffer) GetContext() *Context {
+	if b.context == nil {
+		b.context = &Context{}
+	}
+	return b.context
+}

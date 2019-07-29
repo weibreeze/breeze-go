@@ -15,60 +15,135 @@ const (
 // ReadFieldsFunc is a func interface of how to read a breeze message field by field index.
 type ReadFieldsFunc func(buf *Buffer, index int) error
 
+// ReadElemFunc read one element of map or array
+type ReadElemFunc func(buf *Buffer) error
+
 // ReadBool read a bool value into the bool pointer
-func ReadBool(buf *Buffer, b *bool) error {
+func ReadBool(buf *Buffer, b *bool) (err error) {
+	*b, err = ReadBoolWithoutType(buf)
+	return err
+}
+
+// ReadBoolWithoutType read without type
+func ReadBoolWithoutType(buf *Buffer) (bool, error) {
 	tp, err := buf.ReadByte()
 	if err != nil {
-		return err
+		return false, err
 	}
-	if tp == TRUE {
-		*b = true
-		return nil
-	} else if tp == FALSE {
-		*b = false
-		return nil
+	if tp == TrueType {
+		return true, nil
+	} else if tp == FalseType {
+		return false, nil
 	} else {
-		return errors.New("BreezeRead: wrong type expect bool, real " + strconv.Itoa(int(tp)))
+		return false, errors.New("BreezeRead: wrong type expect bool, real " + strconv.Itoa(int(tp)))
 	}
 }
 
 // ReadString read a string value into a pointer
-func ReadString(buf *Buffer, s *string) error {
-	err := checkType(buf, STRING)
+func ReadString(buf *Buffer, s *string) (err error) {
+	tp, err := buf.ReadByte()
 	if err != nil {
 		return err
 	}
-	_, err = readStringWithoutType(buf, s)
+	if tp <= DirectStringMaxType {
+		bytes, err := buf.Next(int(tp))
+		if err != nil {
+			return err
+		}
+		*s = string(bytes)
+		return nil
+	}
+	switch int(tp) {
+	case StringType:
+		*s, err = ReadStringWithoutType(buf)
+	case Int32Type:
+		i32, err := ReadInt32WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*s = strconv.Itoa(int(i32))
+	case Int64Type:
+		i64, err := ReadInt64WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*s = strconv.FormatInt(i64, 10)
+	case Int16Type:
+		i16, err := ReadInt16WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*s = strconv.Itoa(int(i16))
+	case Float32Type:
+		f32, err := ReadFloat32WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*s = strconv.FormatFloat(float64(f32), 'f', -1, 32)
+	case Float64Type:
+		f64, err := ReadFloat64WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*s = strconv.FormatFloat(f64, 'f', -1, 64)
+	default:
+		err = errors.New("Breeze: not convert to string, type " + strconv.Itoa(int(tp)))
+	}
 	return err
 }
 
 // ReadByte read a byte value into a pointer
 func ReadByte(buf *Buffer, b *byte) error {
-	err := checkType(buf, BYTE)
+	err := checkType(buf, ByteType)
 	if err != nil {
 		return err
 	}
-	_, err = readByteWithoutType(buf, b)
+	*b, err = buf.ReadByte()
 	return err
 }
 
 // ReadBytes read a byte slice value into a pointer
-func ReadBytes(buf *Buffer, bytesAddr *[]byte) error {
-	err := checkType(buf, BYTES)
+func ReadBytes(buf *Buffer, bytes *[]byte) error {
+	err := checkType(buf, BytesType)
 	if err != nil {
 		return err
 	}
-	_, err = readBytesWithoutType(buf, bytesAddr)
+	*bytes, err = ReadBytesWithoutType(buf)
 	return err
 }
 
 // ReadInt16 read a int16 value into a pointer
 func ReadInt16(buf *Buffer, i *int16) error {
-	err := checkType(buf, INT16)
+	tp, err := buf.ReadByte()
 	if err != nil {
 		return err
 	}
-	_, err = readInt16WithoutType(buf, i)
+	switch int(tp) {
+	case Int16Type:
+		*i, err = ReadInt16WithoutType(buf)
+	case StringType:
+		s, err := ReadStringWithoutType(buf)
+		if err != nil {
+			return err
+		}
+		si, err := strconv.Atoi(s)
+		*i = int16(si)
+		return err
+	case Int32Type:
+		i32, err := ReadInt32WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*i = int16(i32)
+	case Int64Type:
+		i64, err := ReadInt64WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*i = int16(i64)
+	default:
+		err = errors.New("Breeze: not convert to int16, type " + strconv.Itoa(int(tp)))
+	}
 	return err
 }
 
@@ -82,46 +157,354 @@ func ReadInt(buf *Buffer, i *int) error {
 
 // ReadInt32 read a int32 value into a pointer
 func ReadInt32(buf *Buffer, i *int32) error {
-	err := checkType(buf, INT32)
+	tp, err := buf.ReadByte()
 	if err != nil {
 		return err
 	}
-	_, err = readInt32WithoutType(buf, i)
+	if tp >= DirectInt32MinType && tp <= DirectInt32MaxType {
+		*i = int32(tp) - Int32Zero
+		return nil
+	}
+	switch int(tp) {
+	case Int32Type:
+		*i, err = ReadInt32WithoutType(buf)
+	case StringType:
+		s, err := ReadStringWithoutType(buf)
+		if err != nil {
+			return err
+		}
+		si, err := strconv.Atoi(s)
+		*i = int32(si)
+		return err
+	case Int64Type:
+		i64, err := ReadInt64WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*i = int32(i64)
+	case Int16Type:
+		i16, err := ReadInt16WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*i = int32(i16)
+	default:
+		err = errors.New("Breeze: not convert to int32, type " + strconv.Itoa(int(tp)))
+	}
 	return err
 }
 
 // ReadInt64 read a int64 value into a pointer
 func ReadInt64(buf *Buffer, i *int64) error {
-	err := checkType(buf, INT64)
+	tp, err := buf.ReadByte()
 	if err != nil {
 		return err
 	}
-	_, err = readInt64WithoutType(buf, i)
+	if tp >= DirectInt64MinType && tp <= DirectInt64MaxType {
+		*i = int64(tp) - Int64Zero
+		return nil
+	}
+	switch int(tp) {
+	case Int64Type:
+		*i, err = ReadInt64WithoutType(buf)
+	case StringType:
+		s, err := ReadStringWithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*i, err = strconv.ParseInt(s, 10, 64)
+		return err
+	case Int32Type:
+		i32, err := ReadInt32WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*i = int64(i32)
+	case Int16Type:
+		i16, err := ReadInt16WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*i = int64(i16)
+	default:
+		err = errors.New("Breeze: not convert to int64, type " + strconv.Itoa(int(tp)))
+	}
 	return err
 }
 
 // ReadFloat32 read a float32 value into a pointer
 func ReadFloat32(buf *Buffer, f *float32) error {
-	err := checkType(buf, FLOAT32)
+	tp, err := buf.ReadByte()
 	if err != nil {
 		return err
 	}
-	_, err = readFloat32WithoutType(buf, f)
+	switch int(tp) {
+	case Float32Type:
+		*f, err = ReadFloat32WithoutType(buf)
+	case Float64Type:
+		f64, err := ReadFloat64WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*f = float32(f64)
+	case StringType:
+		s, err := ReadStringWithoutType(buf)
+		if err != nil {
+			return err
+		}
+		f64, err := strconv.ParseFloat(s, 64)
+		*f = float32(f64)
+		return err
+	default:
+		err = errors.New("Breeze: not convert to float32, type " + strconv.Itoa(int(tp)))
+	}
 	return err
 }
 
 // ReadFloat64 read a float64 value into a pointer
 func ReadFloat64(buf *Buffer, f *float64) error {
-	err := checkType(buf, FLOAT64)
+	tp, err := buf.ReadByte()
 	if err != nil {
 		return err
 	}
-	_, err = readFloat64WithoutType(buf, f)
+	switch int(tp) {
+	case Float64Type:
+		*f, err = ReadFloat64WithoutType(buf)
+	case Float32Type:
+		f32, err := ReadFloat32WithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*f = float64(f32)
+	case StringType:
+		s, err := ReadStringWithoutType(buf)
+		if err != nil {
+			return err
+		}
+		*f, err = strconv.ParseFloat(s, 64)
+	default:
+		err = errors.New("Breeze: not convert to float64 type " + strconv.Itoa(int(tp)))
+	}
 	return err
 }
 
-// ReadMessageByField can read all message fields according to the ReadFieldsFunc
-func ReadMessageByField(buf *Buffer, readField ReadFieldsFunc) error {
+// ReadPackedSize read size of packed map or packed array
+func ReadPackedSize(buf *Buffer, withType bool) (int, error) {
+	if withType {
+		_, err := buf.ReadByte() //ignored
+		if err != nil {
+			return 0, err
+		}
+	}
+	i, err := buf.ReadVarInt()
+	if err != nil {
+		return 0, err
+	}
+	size := int(i)
+	if size > MaxElemSize {
+		return 0, errors.New("collection elem size overflow. size:" + strconv.Itoa(size))
+	}
+	return size, nil
+}
+
+// ReadPacked read packed map or packed array without type
+func ReadPacked(buf *Buffer, size int, isMap bool, f ReadElemFunc) (err error) {
+	if size <= 0 {
+		return nil
+	}
+	readType(buf) // skip key type
+	if isMap {
+		readType(buf) // skip value type
+	}
+	for i := 0; i < size; i++ {
+		err = f(buf)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReadByEnum read enum with type
+func ReadByEnum(buf *Buffer, enum Enum, asAddr bool) (interface{}, error) {
+	tp, _, err := readType(buf)
+	if err != nil {
+		return nil, err
+	}
+	if tp != MessageType {
+		return nil, errors.New("ReadByEnum fail, type not message, tp " + strconv.Itoa(int(tp)))
+	}
+	return enum.ReadEnum(buf, asAddr)
+}
+
+// ReadByMessage read message with type
+func ReadByMessage(buf *Buffer, msg Message) (err error) {
+	tp, _, err := readType(buf)
+	if err != nil {
+		return err
+	}
+	if tp != MessageType {
+		return errors.New("ReadByEnum fail, type not message, tp " + strconv.Itoa(int(tp)))
+	}
+	return msg.ReadFrom(buf)
+}
+
+// ReadStringStringMap read map[string]string
+func ReadStringStringMap(buf *Buffer, withType bool) (m map[string]string, err error) {
+	size, err := ReadPackedSize(buf, withType)
+	if err != nil {
+		return nil, err
+	}
+	m = make(map[string]string, size)
+	err = ReadPacked(buf, size, true, func(buf *Buffer) (err error) {
+		var k, v string
+		k, err = ReadStringWithoutType(buf)
+		if err != nil {
+			return err
+		}
+		v, err = ReadStringWithoutType(buf)
+		if err == nil {
+			m[k] = v
+		}
+		return err
+	})
+	return m, err
+}
+
+// ReadStringInt32Map read map[string]int32
+func ReadStringInt32Map(buf *Buffer, withType bool) (m map[string]int32, err error) {
+	size, err := ReadPackedSize(buf, withType)
+	if err != nil {
+		return nil, err
+	}
+	m = make(map[string]int32, size)
+	err = ReadPacked(buf, size, true, func(buf *Buffer) error {
+		k, err := ReadStringWithoutType(buf)
+		if err != nil {
+			return err
+		}
+		v, err := ReadInt32WithoutType(buf)
+		if err == nil {
+			m[k] = v
+		}
+		return err
+	})
+	return m, err
+}
+
+// ReadStringInt64Map read map[string]int64
+func ReadStringInt64Map(buf *Buffer, withType bool) (m map[string]int64, err error) {
+	size, err := ReadPackedSize(buf, withType)
+	if err != nil {
+		return nil, err
+	}
+	m = make(map[string]int64, size)
+	err = ReadPacked(buf, size, true, func(buf *Buffer) error {
+		k, err := ReadStringWithoutType(buf)
+		if err != nil {
+			return err
+		}
+		v, err := ReadInt64WithoutType(buf)
+		if err == nil {
+			m[k] = v
+		}
+		return err
+	})
+	return m, err
+}
+
+// ReadStringArray read []string
+func ReadStringArray(buf *Buffer, withType bool) ([]string, error) {
+	size, err := ReadPackedSize(buf, withType)
+	if err != nil {
+		return nil, err
+	}
+	a := make([]string, 0, size)
+	if size > 0 {
+		readType(buf)
+		for i := 0; i < size; i++ {
+			s, err := ReadStringWithoutType(buf)
+			if err != nil {
+				return nil, err
+			}
+			a = append(a, s)
+		}
+	}
+	return a, nil
+}
+
+// ReadInt32Array read []int32
+func ReadInt32Array(buf *Buffer, withType bool) ([]int32, error) {
+	size, err := ReadPackedSize(buf, withType)
+	if err != nil {
+		return nil, err
+	}
+	a := make([]int32, 0, size)
+	if size > 0 {
+		readType(buf)
+		for i := 0; i < size; i++ {
+			i32, err := ReadInt32WithoutType(buf)
+			if err != nil {
+				return nil, err
+			}
+			a = append(a, i32)
+		}
+	}
+	return a, nil
+}
+
+// ReadInt64Array read []int64
+func ReadInt64Array(buf *Buffer, withType bool) ([]int64, error) {
+	size, err := ReadPackedSize(buf, withType)
+	if err != nil {
+		return nil, err
+	}
+	a := make([]int64, 0, size)
+	if size > 0 {
+		readType(buf)
+		for i := 0; i < size; i++ {
+			i64, err := ReadInt64WithoutType(buf)
+			if err != nil {
+				return nil, err
+			}
+			a = append(a, i64)
+		}
+	}
+	return a, nil
+}
+
+func readType(buf *Buffer) (tp byte, name string, err error) {
+	tp, err = buf.ReadByte()
+	if err != nil {
+		return tp, name, err
+	}
+	if tp >= MessageType { //message
+		name, err = readMessageType(buf, tp)
+		tp = MessageType
+	}
+	return tp, name, err
+}
+
+func readMessageType(buf *Buffer, tp byte) (name string, err error) {
+	if tp == MessageType {
+		name, err = ReadStringWithoutType(buf)
+		if err == nil {
+			buf.GetContext().putMessageType(name)
+		}
+	} else if tp == RefMessageType {
+		index, err := buf.ReadVarInt()
+		if err != nil {
+			return name, err
+		}
+		name = buf.GetContext().getMessageTypeName(int(index))
+	} else {
+		name = buf.GetContext().getMessageTypeName(int(tp - RefMessageType))
+	}
+	return name, err
+}
+
+// ReadMessageField can read all message fields according to the ReadFieldsFunc
+func ReadMessageField(buf *Buffer, readField ReadFieldsFunc) (err error) {
 	total, err := buf.ReadInt()
 	if err != nil {
 		return err
@@ -131,7 +514,7 @@ func ReadMessageByField(buf *Buffer, readField ReadFieldsFunc) error {
 		endPos := pos + total
 		var index uint64
 		for buf.GetRPos() < endPos {
-			index, err = buf.ReadZigzag32()
+			index, err = buf.ReadVarInt()
 			if err != nil {
 				return err
 			}
@@ -160,58 +543,119 @@ func checkType(buf *Buffer, expect byte) error {
 
 /*
 ReadValue read A value from Buffer based v.
-v can be A reflect type or an address which receive the deserialized value.
+v can be A reflect type or an address which receive the deserialize value.
 */
 func ReadValue(buf *Buffer, v interface{}) (interface{}, error) {
-	tp, err := buf.ReadByte()
-	if err != nil {
-		return nil, err
+	return readValueByType(buf, v, true, 0, "")
+}
+
+func readValueByType(buf *Buffer, v interface{}, withType bool, t byte, msgName string) (interface{}, error) {
+	var err error
+	if withType {
+		t, msgName, err = readType(buf)
+		if err != nil {
+			return nil, err
+		}
 	}
-	switch int(tp) {
-	case NULL:
+
+	// string
+	if t <= StringType {
+		var s string
+		if t == StringType {
+			s, err = ReadStringWithoutType(buf)
+		} else {
+			bytes, err := buf.Next(int(t))
+			if err != nil {
+				return nil, err
+			}
+			s = string(bytes)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return adaptString(s, v)
+	}
+	// int32
+	if t >= DirectInt32MinType && t <= Int32Type {
+		var i32 int32
+		if t == Int32Type {
+			i32, err = ReadInt32WithoutType(buf)
+		} else {
+			i32 = int32(t) - Int32Zero
+		}
+		if err != nil {
+			return nil, err
+		}
+		return adaptInt32(i32, v)
+	}
+	//int64
+	if t >= DirectInt64MinType && t <= Int64Type {
+		var i64 int64
+		if t == Int64Type {
+			i64, err = ReadInt64WithoutType(buf)
+		} else {
+			i64 = int64(t) - Int64Zero
+		}
+		if err != nil {
+			return nil, err
+		}
+		return adaptInt64(i64, v)
+	}
+
+	switch t {
+	case NullType:
 		return nil, nil
-	case TRUE:
+	case MessageType:
+		return readMessage(buf, v, msgName)
+	case MapType, PackedMapType:
+		return readMap(buf, v, t == PackedMapType)
+	case ArrayType, PackedArrayType:
+		return readArray(buf, v, t == PackedArrayType)
+	case TrueType:
 		if castV, ok := v.(*bool); ok {
 			*castV = true
 		}
 		return true, nil
-	case FALSE:
+	case FalseType:
 		if castV, ok := v.(*bool); ok {
 			*castV = false
 		}
 		return false, nil
-	case STRING:
-		return readStringWithoutType(buf, v)
-	case BYTE:
-		return readByteWithoutType(buf, v)
-	case BYTES:
-		return readBytesWithoutType(buf, v)
-	case INT16:
-		return readInt16WithoutType(buf, v)
-	case INT32:
-		return readInt32WithoutType(buf, v)
-	case INT64:
-		return readInt64WithoutType(buf, v)
-	case FLOAT32:
-		return readFloat32WithoutType(buf, v)
-	case FLOAT64:
-		return readFloat64WithoutType(buf, v)
-	case MAP:
-		return readMap(buf, v)
-	case ARRAY:
-		return readArray(buf, v)
-	case MESSAGE:
-		return readMessage(buf, v)
+	case Float32Type:
+		f, err := ReadFloat32WithoutType(buf)
+		if err != nil {
+			return nil, err
+		}
+		return adaptFloat32(f, v)
+	case Float64Type:
+		f, err := ReadFloat64WithoutType(buf)
+		if err != nil {
+			return nil, err
+		}
+		return adaptFloat64(f, v)
+	case BytesType:
+		bytes, err := ReadBytesWithoutType(buf)
+		if err != nil {
+			return nil, err
+		}
+		if castV, ok := v.(*[]byte); ok {
+			*castV = bytes
+			return *castV, nil
+		}
+		return bytes, nil
+	case ByteType:
+		return adaptByte(buf, v)
+	case Int16Type:
+		i16, err := ReadInt16WithoutType(buf)
+		if err != nil {
+			return nil, err
+		}
+		return adaptInt16(i16, v)
 	}
-	return nil, errors.New("BreezeRead: unsupport type " + strconv.Itoa(int(tp)))
+	return nil, errors.New("BreezeRead: unsupported type " + strconv.Itoa(int(t)))
 }
 
-func readMessage(buf *Buffer, v interface{}) (interface{}, error) {
-	var name string
-	err := ReadString(buf, &name)
-	if err != nil {
-		return nil, err
-	}
+func readMessage(buf *Buffer, v interface{}, name string) (interface{}, error) {
 	if enum, ok := v.(Enum); ok {
 		result, err := enum.ReadEnum(buf, false)
 		if err == nil {
@@ -244,7 +688,7 @@ func readMessage(buf *Buffer, v interface{}) (interface{}, error) {
 		}
 	}
 	if message != nil {
-		err = message.ReadFrom(buf)
+		err := message.ReadFrom(buf)
 		if err != nil {
 			return nil, err
 		}
@@ -253,20 +697,24 @@ func readMessage(buf *Buffer, v interface{}) (interface{}, error) {
 	return nil, errors.New("BreezeRead: can not read breeze message to type" + reflect.TypeOf(v).String())
 }
 
-func readArray(buf *Buffer, v interface{}) (interface{}, error) {
-	total, err := buf.ReadInt()
+func readArray(buf *Buffer, v interface{}, isPacked bool) (interface{}, error) {
+	total, err := buf.ReadVarInt()
 	if err != nil {
 		return nil, err
 	}
 	if total <= 0 {
 		return nil, nil
 	}
+	size := int(total)
+	if size > MaxElemSize {
+		return nil, errors.New("collection elem size overflow. size:" + strconv.Itoa(size))
+	}
 	var orgRv reflect.Value
 	var rv reflect.Value
 	rt, isType := v.(reflect.Type)
 	if !isType {
 		if v == nil {
-			tmp := make([]interface{}, 0, DefaultSize)
+			tmp := make([]interface{}, 0, size)
 			rv = reflect.ValueOf(&tmp)
 		} else {
 			rv = reflect.ValueOf(v)
@@ -284,24 +732,33 @@ func readArray(buf *Buffer, v interface{}) (interface{}, error) {
 	}
 	if isType {
 		if rt.Kind() == reflect.Interface {
-			rv = reflect.ValueOf(make([]interface{}, 0, DefaultSize))
+			rv = reflect.ValueOf(make([]interface{}, 0, size))
 			rt = rv.Type()
 		} else {
-			rv = reflect.MakeSlice(rt, 0, DefaultSize)
+			rv = reflect.MakeSlice(rt, 0, size)
 		}
 	}
-	pos := buf.GetRPos()
-	endPos := pos + total
+
+	var tp byte
+	var name string
+	if isPacked {
+		tp, name, err = readType(buf)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var sv interface{}
-	for buf.GetRPos() < endPos {
-		sv, err = ReadValue(buf, rt.Elem())
+	for i := 0; i < size; i++ {
+		if isPacked {
+			sv, err = readValueByType(buf, rt.Elem(), false, tp, name)
+		} else {
+			sv, err = ReadValue(buf, rt.Elem())
+		}
 		if err != nil {
 			return nil, err
 		}
 		rv = reflect.Append(rv, reflect.ValueOf(sv))
-	}
-	if buf.GetRPos() != endPos {
-		return nil, ErrWrongSize
 	}
 	if !isType {
 		orgRv.Elem().Set(rv)
@@ -309,19 +766,24 @@ func readArray(buf *Buffer, v interface{}) (interface{}, error) {
 	return rv.Interface(), nil
 }
 
-func readMap(buf *Buffer, v interface{}) (interface{}, error) {
-	total, err := buf.ReadInt()
+func readMap(buf *Buffer, v interface{}, isPacked bool) (interface{}, error) {
+	total, err := buf.ReadVarInt()
 	if err != nil {
 		return nil, err
 	}
 	if total <= 0 {
 		return nil, nil
 	}
+	size := int(total)
+	if size > MaxElemSize {
+		return nil, errors.New("collection elem size overflow. size:" + strconv.Itoa(size))
+	}
+	var orgRv reflect.Value
 	var rv reflect.Value
 	rt, isType := v.(reflect.Type)
 	if !isType {
 		if v == nil {
-			tmp := make(map[interface{}]interface{}, DefaultSize)
+			tmp := make(map[interface{}]interface{}, size)
 			rv = reflect.ValueOf(&tmp)
 		} else {
 			rv = reflect.ValueOf(v)
@@ -330,6 +792,7 @@ func readMap(buf *Buffer, v interface{}) (interface{}, error) {
 		if rt.Kind() != reflect.Ptr {
 			return nil, errors.New("BreezeRead: can not read map to type " + rt.String())
 		}
+		orgRv = rv
 		rv = rv.Elem()
 		rt = rv.Type()
 	}
@@ -338,38 +801,62 @@ func readMap(buf *Buffer, v interface{}) (interface{}, error) {
 	}
 	if isType {
 		if rt.Kind() == reflect.Interface {
-			rv = reflect.ValueOf(make(map[interface{}]interface{}, DefaultSize))
+			rv = reflect.ValueOf(make(map[interface{}]interface{}, size))
 			rt = rv.Type()
 		} else {
-			rv = reflect.MakeMapWithSize(rt, DefaultSize)
+			rv = reflect.MakeMapWithSize(rt, size)
 		}
 	}
-	pos := buf.GetRPos()
-	endPos := pos + total
-	var mk, mv interface{}
-	for buf.GetRPos() < endPos {
-		mk, err = ReadValue(buf, rt.Key())
+	var ktp, vtp byte
+	var kn, vn string
+	if isPacked {
+		ktp, kn, err = readType(buf)
+		vtp, vn, err = readType(buf)
 		if err != nil {
 			return nil, err
 		}
-		mv, err = ReadValue(buf, rt.Elem())
-		if err != nil {
-			return nil, err
+	}
+
+	var mk, mv interface{}
+	for i := 0; i < size; i++ {
+		if isPacked {
+			mk, err = readValueByType(buf, rt.Key(), false, ktp, kn)
+			if err != nil {
+				return nil, err
+			}
+			mv, err = readValueByType(buf, rt.Elem(), false, vtp, vn)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			mk, err = ReadValue(buf, rt.Key())
+			if err != nil {
+				return nil, err
+			}
+			mv, err = ReadValue(buf, rt.Elem())
+			if err != nil {
+				return nil, err
+			}
 		}
 		rv.SetMapIndex(reflect.ValueOf(mk), reflect.ValueOf(mv))
 	}
-	if buf.GetRPos() != endPos {
-		return nil, ErrWrongSize
+	if !isType {
+		orgRv.Elem().Set(rv)
 	}
 	return rv.Interface(), nil
 }
 
-func readFloat64WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
+// ReadFloat64WithoutType read without type
+func ReadFloat64WithoutType(buf *Buffer) (float64, error) {
 	i, err := buf.ReadUint64()
 	if err != nil {
 		return 0, err
 	}
-	f := math.Float64frombits(i)
+	return math.Float64frombits(i), nil
+
+}
+
+func adaptFloat64(f float64, v interface{}) (interface{}, error) {
 	if v == nil {
 		return f, nil
 	}
@@ -387,12 +874,16 @@ func readFloat64WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
 	return nil, errors.New("BreezeRead: can not read float64 to type " + rt.String())
 }
 
-func readFloat32WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
+// ReadFloat32WithoutType read without type
+func ReadFloat32WithoutType(buf *Buffer) (float32, error) {
 	i, err := buf.ReadUint32()
 	if err != nil {
 		return 0, err
 	}
-	f := math.Float32frombits(i)
+	return math.Float32frombits(i), nil
+}
+
+func adaptFloat32(f float32, v interface{}) (interface{}, error) {
 	if v == nil {
 		return f, nil
 	}
@@ -410,89 +901,89 @@ func readFloat32WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
 	return nil, errors.New("BreezeRead: can not read float32 to type " + rt.String())
 }
 
-func readInt64WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
+// ReadInt64WithoutType read without type
+func ReadInt64WithoutType(buf *Buffer) (int64, error) {
 	i, err := buf.ReadZigzag64()
-	if err != nil {
-		return nil, err
-	}
+	return int64(i), err
+}
+
+func adaptInt64(i int64, v interface{}) (interface{}, error) {
 	if v == nil {
-		return int64(i), nil
+		return i, nil
 	}
 	if castV, ok := v.(*int64); ok {
-		*castV = int64(i)
+		*castV = i
 		return *castV, nil
 	}
 	rt, isType := v.(reflect.Type)
 	if isType && (rt.Kind() == reflect.Int64 || rt.Kind() == reflect.Interface) {
-		return int64(i), nil
+		return i, nil
 	}
-	return compatInt(int64(i), v)
+	return adaptToInt(i, v)
 }
 
-func readInt32WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
+// ReadInt32WithoutType read without type
+func ReadInt32WithoutType(buf *Buffer) (int32, error) {
 	i, err := buf.ReadZigzag32()
-	if err != nil {
-		return nil, err
-	}
+	return int32(i), err
+}
+
+func adaptInt32(i int32, v interface{}) (interface{}, error) {
 	if v == nil {
-		return int32(i), nil
+		return i, nil
 	}
 	if castV, ok := v.(*int); ok {
-		*castV = int(int32(i))
+		*castV = int(i)
 		return *castV, nil
 	}
 	if castV, ok := v.(*int32); ok {
-		*castV = int32(i)
+		*castV = i
 		return *castV, nil
 	}
 	rt, isType := v.(reflect.Type)
 	if isType {
 		if rt.Kind() == reflect.Int || rt.Kind() == reflect.Interface {
-			return int(int32(i)), nil
+			return int(i), nil
 		} else if rt.Kind() == reflect.Int32 {
-			return int32(i), nil
+			return i, nil
 		}
 	}
-	return compatInt(int64(i), v)
+	return adaptToInt(int64(i), v)
 }
 
-func readInt16WithoutType(buf *Buffer, v interface{}) (interface{}, error) {
+// ReadInt16WithoutType read without type
+func ReadInt16WithoutType(buf *Buffer) (int16, error) {
 	i, err := buf.ReadUint16()
-	if err != nil {
-		return nil, err
-	}
+	return int16(i), err
+}
+
+func adaptInt16(i int16, v interface{}) (interface{}, error) {
 	if v == nil {
-		return int16(i), nil
+		return i, nil
 	}
 	if castV, ok := v.(*int16); ok {
-		*castV = int16(i)
+		*castV = i
 		return *castV, nil
 	}
 	rt, isType := v.(reflect.Type)
 	if isType && (rt.Kind() == reflect.Int16 || rt.Kind() == reflect.Interface) {
-		return int16(i), nil
+		return i, nil
 	}
-	return compatInt(int64(i), v)
+	return adaptToInt(int64(i), v)
 }
 
-func readBytesWithoutType(buf *Buffer, v interface{}) (interface{}, error) {
+// ReadBytesWithoutType read without type
+func ReadBytesWithoutType(buf *Buffer) ([]byte, error) {
 	size, err := buf.ReadInt()
 	if err != nil {
 		return nil, err
 	}
 	ret := make([]byte, size)
 	err = buf.ReadFull(ret)
-	if err != nil {
-		return nil, err
-	}
-	if castV, ok := v.(*[]byte); ok {
-		*castV = ret
-		return *castV, nil
-	}
-	return ret, nil
+	return ret, err
 }
 
-func readByteWithoutType(buf *Buffer, v interface{}) (interface{}, error) {
+func adaptByte(buf *Buffer, v interface{}) (interface{}, error) {
 	b, err := buf.ReadByte()
 	if err != nil {
 		return nil, err
@@ -503,16 +994,20 @@ func readByteWithoutType(buf *Buffer, v interface{}) (interface{}, error) {
 	return b, nil
 }
 
-func readStringWithoutType(buf *Buffer, v interface{}) (interface{}, error) {
-	size, err := buf.ReadZigzag32()
+// ReadStringWithoutType read without type
+func ReadStringWithoutType(buf *Buffer) (string, error) {
+	size, err := buf.ReadVarInt()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	bytes, err := buf.Next(int(size))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	s := string(bytes)
+	return string(bytes), nil
+}
+
+func adaptString(s string, v interface{}) (interface{}, error) {
 	if v == nil {
 		return s, nil
 	}
@@ -560,7 +1055,7 @@ func parseStringByType(s string, rt reflect.Type) (interface{}, error) {
 	return nil, errors.New("BreezeRead: can not read string to type " + rt.String())
 }
 
-func compatInt(i int64, v interface{}) (interface{}, error) {
+func adaptToInt(i int64, v interface{}) (interface{}, error) {
 	if rt, isType := v.(reflect.Type); isType {
 		return getIntByKind(int64(i), rt.Kind())
 	}
