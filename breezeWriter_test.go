@@ -467,7 +467,7 @@ func TestWriteMessage(t *testing.T) {
 			if b < MessageType {
 				t.Errorf("read wrong message type.expect:%v, real:%v", MessageType, b)
 			}
-			rname, err := ReadStringWithoutType(newBuf)
+			rname, _ := ReadStringWithoutType(newBuf)
 			if rname != name {
 				t.Errorf("read wrong message name. expect:%v, real:%v", name, rname)
 			}

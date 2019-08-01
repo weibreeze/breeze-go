@@ -282,6 +282,9 @@ func ReadFloat64(buf *Buffer, f *float64) error {
 			return err
 		}
 		*f, err = strconv.ParseFloat(s, 64)
+		if err != nil {
+			return err
+		}
 	default:
 		err = errors.New("Breeze: not convert to float64 type " + strconv.Itoa(int(tp)))
 	}
@@ -684,7 +687,7 @@ func readMessage(buf *Buffer, v interface{}, name string) (interface{}, error) {
 			if enum, ok := newValue.(Enum); ok {
 				return enum.ReadEnum(buf, true)
 			}
-			message, ok = newValue.(Message)
+			message, _ = newValue.(Message)
 		}
 	}
 	if message != nil {
@@ -811,6 +814,9 @@ func readMap(buf *Buffer, v interface{}, isPacked bool) (interface{}, error) {
 	var kn, vn string
 	if isPacked {
 		ktp, kn, err = readType(buf)
+		if err != nil {
+			return nil, err
+		}
 		vtp, vn, err = readType(buf)
 		if err != nil {
 			return nil, err

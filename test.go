@@ -157,6 +157,7 @@ func (t *TestMsg) ReadFrom(buf *Buffer) error {
 				}
 				return err
 			})
+			return err
 		case 4:
 			size, err := ReadPackedSize(buf, true)
 			if err != nil {
@@ -171,6 +172,7 @@ func (t *TestMsg) ReadFrom(buf *Buffer) error {
 				}
 				return err
 			})
+			return err
 		case 5:
 			t.SubMsg = &TestSubMsg{}
 			return ReadByMessage(buf, t.SubMsg)
@@ -194,6 +196,7 @@ func (t *TestMsg) ReadFrom(buf *Buffer) error {
 				}
 				return err
 			})
+			return err
 		default: //skip unknown field
 			_, err = ReadValue(buf, nil)
 		}
@@ -301,6 +304,7 @@ func (t *TestSubMsg) ReadFrom(buf *Buffer) error {
 				}
 				return err
 			})
+			return err
 		case 9:
 			size, err := ReadPackedSize(buf, true)
 			if err != nil {
@@ -318,6 +322,7 @@ func (t *TestSubMsg) ReadFrom(buf *Buffer) error {
 				}
 				return err
 			})
+			return err
 		case 10:
 			t.MyArray, err = ReadInt32Array(buf, true)
 		case 11:
