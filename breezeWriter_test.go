@@ -409,6 +409,10 @@ func TestWriteValueComplex(t *testing.T) {
 		m[strconv.Itoa(i)] = a
 	}
 
+	a := make([]*TestMsg, 0, 16)
+	a = append(a, getTestMsg())
+	a = append(a, getTestMsg())
+
 	tests := []struct {
 		name    string
 		args    args
@@ -416,6 +420,8 @@ func TestWriteValueComplex(t *testing.T) {
 	}{
 		{"complex map", args{NewBuffer(32), m}, false},
 		{"complex map", args{NewBuffer(32), &m}, false},
+		{"message array", args{NewBuffer(32), a}, false},
+		{"message array", args{NewBuffer(32), &a}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -369,7 +369,7 @@ func WriteValue(buf *Buffer, v interface{}) error {
 		return nil
 	}
 	if msg, ok := v.(Message); ok {
-		return writeMessage(buf, msg)
+		return writeMessage(buf, msg, true)
 	}
 
 	var rv reflect.Value
@@ -388,7 +388,7 @@ func writeReflectValue(buf *Buffer, rv reflect.Value, withType bool) error {
 		if rv.CanInterface() { //message
 			realV := rv.Interface()
 			if msg, ok := realV.(Message); ok {
-				return writeMessage(buf, msg)
+				return writeMessage(buf, msg, withType)
 			}
 		}
 		//TODO extension for custom process
@@ -551,8 +551,10 @@ func canPackMap(t reflect.Type) bool {
 	return (t.Key().Kind() != reflect.Interface) && (t.Elem().Kind() != reflect.Interface)
 }
 
-func writeMessage(buf *Buffer, message Message) error {
-	WriteMessageType(buf, message.GetName())
+func writeMessage(buf *Buffer, message Message, withType bool) error {
+	if withType {
+		WriteMessageType(buf, message.GetName())
+	}
 	return message.WriteTo(buf)
 }
 
