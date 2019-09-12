@@ -176,12 +176,12 @@ func TestWriteInt32(t *testing.T) {
 		name string
 		args args
 	}{
-		//{"zero", args{NewBuffer(32), 0}},
-		//{"negative", args{NewBuffer(32), -12345}},
-		//{"max", args{NewBuffer(32), math.MaxInt32}},
-		//{"min", args{NewBuffer(32), math.MinInt32}},
-		//{"normal", args{NewBuffer(32), 2332454}},
-		//{"normal2", args{NewBuffer(32), 37}},
+		{"zero", args{NewBuffer(32), 0}},
+		{"negative", args{NewBuffer(32), -12345}},
+		{"max", args{NewBuffer(32), math.MaxInt32}},
+		{"min", args{NewBuffer(32), math.MinInt32}},
+		{"normal", args{NewBuffer(32), 2332454}},
+		{"normal2", args{NewBuffer(32), 37}},
 		{"normal3", args{NewBuffer(32), -13}},
 	}
 	for _, tt := range tests {
