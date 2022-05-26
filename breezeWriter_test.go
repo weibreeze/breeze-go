@@ -566,6 +566,106 @@ func TestWriteValueMessage(t *testing.T) {
 	}
 }
 
+func TestWritePackedMapEntry(t *testing.T) {
+	// test WriteStringStringMapEntries
+	m := make(map[string]string)
+	buf := NewBuffer(32)
+	WriteStringStringMapEntries(buf, m)
+	if buf.Len() > 0 {
+		t.Errorf("wrong result-WriteStringStringMapEntries. expect %v, real %v", 0, buf.Len())
+	}
+	buf.Reset()
+	m["dfe"] = "djfie"
+	m["eruie"] = "kdfiepwe"
+	WriteStringStringMapEntries(buf, m)
+	expect := 27
+	if buf.Len() != expect {
+		t.Errorf("wrong result-WriteStringStringMapEntries. expect %v, real %v", expect, buf.Len())
+	}
+
+	// test WriteStringInt32MapEntries
+	m2 := make(map[string]int32)
+	buf.Reset()
+	WriteStringInt32MapEntries(buf, m2)
+	if buf.Len() > 0 {
+		t.Errorf("wrong result-WriteStringInt32MapEntries. expect %v, real %v", 0, buf.Len())
+	}
+	buf.Reset()
+	m2["dfe"] = 346
+	m2["eruie"] = 34090
+	WriteStringInt32MapEntries(buf, m2)
+	expect = 17
+	if buf.Len() != expect {
+		t.Errorf("wrong result-WriteStringInt32MapEntries. expect %v, real %v", expect, buf.Len())
+	}
+
+	// test WriteStringInt64MapEntries
+	m3 := make(map[string]int64)
+	buf.Reset()
+	WriteStringInt64MapEntries(buf, m3)
+	if buf.Len() > 0 {
+		t.Errorf("wrong result-WriteStringInt64MapEntries. expect %v, real %v", 0, buf.Len())
+	}
+	buf.Reset()
+	m3["derie"] = 34683094830
+	m3["dfkoef"] = 34090
+	WriteStringInt64MapEntries(buf, m3)
+	expect = 24
+	if buf.Len() != expect {
+		t.Errorf("wrong result-WriteStringInt64MapEntries. expect %v, real %v", expect, buf.Len())
+	}
+}
+
+func TestWritePackedArrayElem(t *testing.T) {
+	// test WriteStringArrayElems
+	a := make([]string, 0, 16)
+	buf := NewBuffer(32)
+	WriteStringArrayElems(buf, a)
+	if buf.Len() > 0 {
+		t.Errorf("wrong result-WriteStringArrayElems. expect %v, real %v", 0, buf.Len())
+	}
+	buf.Reset()
+	a = append(a, "djfie")
+	a = append(a, "sdjfioefj")
+	WriteStringArrayElems(buf, a)
+	expect := 17
+	if buf.Len() != expect {
+		t.Errorf("wrong result-WriteStringArrayElems. expect %v, real %v", expect, buf.Len())
+	}
+
+	// test WriteInt32ArrayElems
+	a2 := make([]int32, 0, 16)
+	buf.Reset()
+	WriteInt32ArrayElems(buf, a2)
+	if buf.Len() > 0 {
+		t.Errorf("wrong result-WriteInt32ArrayElems. expect %v, real %v", 0, buf.Len())
+	}
+	buf.Reset()
+	a2 = append(a2, 3467384)
+	a2 = append(a2, 9834)
+	WriteInt32ArrayElems(buf, a2)
+	expect = 8
+	if buf.Len() != expect {
+		t.Errorf("wrong result-WriteInt32ArrayElems. expect %v, real %v", expect, buf.Len())
+	}
+
+	// test WriteInt64ArrayElems
+	a3 := make([]int64, 0, 16)
+	buf.Reset()
+	WriteInt64ArrayElems(buf, a3)
+	if buf.Len() > 0 {
+		t.Errorf("wrong result-WriteInt64ArrayElems. expect %v, real %v", 0, buf.Len())
+	}
+	buf.Reset()
+	a3 = append(a3, 346738384784)
+	a3 = append(a3, 983487634)
+	WriteInt64ArrayElems(buf, a3)
+	expect = 12
+	if buf.Len() != expect {
+		t.Errorf("wrong result-WriteInt64ArrayElems. expect %v, real %v", expect, buf.Len())
+	}
+}
+
 func BenchmarkWriteMessage(b *testing.B) {
 	testmsg := GetBenchData(100)
 	buf := NewBuffer(5000)
