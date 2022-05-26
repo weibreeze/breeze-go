@@ -121,55 +121,67 @@ func WritePackedArray(buf *Buffer, withType bool, size int, f WriteElemFunc) {
 
 // WriteStringStringMapEntries write map[string]string directly
 func WriteStringStringMapEntries(buf *Buffer, m map[string]string) {
-	WriteStringType(buf)
-	WriteStringType(buf)
-	for k, v := range m {
-		WriteString(buf, k, false)
-		WriteString(buf, v, false)
+	if len(m) > 0 {
+		WriteStringType(buf)
+		WriteStringType(buf)
+		for k, v := range m {
+			WriteString(buf, k, false)
+			WriteString(buf, v, false)
+		}
 	}
 }
 
 // WriteStringInt32MapEntries write map[string]int32 directly
 func WriteStringInt32MapEntries(buf *Buffer, m map[string]int32) {
-	WriteStringType(buf)
-	WriteInt32Type(buf)
-	for k, v := range m {
-		WriteString(buf, k, false)
-		WriteInt32(buf, v, false)
+	if len(m) > 0 {
+		WriteStringType(buf)
+		WriteInt32Type(buf)
+		for k, v := range m {
+			WriteString(buf, k, false)
+			WriteInt32(buf, v, false)
+		}
 	}
 }
 
 // WriteStringInt64MapEntries write map[string]int64 directly
 func WriteStringInt64MapEntries(buf *Buffer, m map[string]int64) {
-	WriteStringType(buf)
-	WriteInt64Type(buf)
-	for k, v := range m {
-		WriteString(buf, k, false)
-		WriteInt64(buf, v, false)
+	if len(m) > 0 {
+		WriteStringType(buf)
+		WriteInt64Type(buf)
+		for k, v := range m {
+			WriteString(buf, k, false)
+			WriteInt64(buf, v, false)
+		}
 	}
 }
 
 // WriteStringArrayElems write []string directly
 func WriteStringArrayElems(buf *Buffer, a []string) {
-	WriteStringType(buf)
-	for _, v := range a {
-		WriteString(buf, v, false)
+	if len(a) > 0 {
+		WriteStringType(buf)
+		for _, v := range a {
+			WriteString(buf, v, false)
+		}
 	}
 }
 
 // WriteInt32ArrayElems write []int32 directly
 func WriteInt32ArrayElems(buf *Buffer, a []int32) {
-	WriteInt32Type(buf)
-	for _, v := range a {
-		WriteInt32(buf, v, false)
+	if len(a) > 0 {
+		WriteInt32Type(buf)
+		for _, v := range a {
+			WriteInt32(buf, v, false)
+		}
 	}
 }
 
 // WriteInt64ArrayElems write []int64 directly
 func WriteInt64ArrayElems(buf *Buffer, a []int64) {
-	WriteInt64Type(buf)
-	for _, v := range a {
-		WriteInt64(buf, v, false)
+	if len(a) > 0 {
+		WriteInt64Type(buf)
+		for _, v := range a {
+			WriteInt64(buf, v, false)
+		}
 	}
 }
 
